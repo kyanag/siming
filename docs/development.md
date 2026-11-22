@@ -86,6 +86,24 @@ powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 | 框架依赖（默认） | ~4 MB | ~15–20 MB | ~11–12 MB |
 | 自包含 + 压缩 | ~51 MB | ~50–70 MB | ~50 MB |
 
+## GitHub Actions
+
+`.github/workflows/release.yml`：
+
+- push 到 `main` / `master`：构建、测试，并更新滚动预发布 `latest`
+- push `v*` 标签：构建并创建对应版本的正式 Release
+- 手动触发：按当前 ref 执行
+
+每个 Release 包含：
+
+- `Siming-win-x64.zip`：框架依赖版
+- `Siming-win-x64-selfcontained.zip`：自包含版
+- `SHA256SUMS.txt`：ZIP 校验和
+
+首次使用前，在仓库 `Settings → Actions → General → Workflow permissions` 选择 **Read and write permissions**，否则 `GITHUB_TOKEN` 无法创建 Release 或更新 `latest` 标签。
+
+> `latest` 是滚动标签，会被强制移动到最新提交；稳定版本请使用 `v*` 标签。
+
 ## 结构
 
 ```text

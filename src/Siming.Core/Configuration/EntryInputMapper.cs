@@ -31,7 +31,7 @@ public static class EntryInputMapper
 
         var shell = !string.IsNullOrWhiteSpace(input.Shell)
             ? input.Shell.Trim()
-            : existing?.Shell ?? "cmd";
+            : existing?.Shell ?? ShellKinds.Preferred();
         var encoding = !string.IsNullOrWhiteSpace(input.Encoding)
             ? input.Encoding.Trim()
             : existing?.Encoding ?? "utf-8";

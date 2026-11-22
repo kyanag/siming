@@ -45,7 +45,7 @@ D:\tools\Siming\
    - **名称**：例如 `Blog Dev`
    - **工作目录**：例如 `D:\projects\blog`
    - **命令**：例如 `npm run dev`
-   - **Shell**：一般选 `cmd`；PowerShell 脚本选 `powershell`
+   - **Shell**：新建时默认按 `pwsh` → `powershell` → `cmd` 取本机可用的第一个；也可手动选 `none`（直接执行 exe）
 5. 保存后选中条目，点「启动」。状态变为「运行中」，托盘图标变绿。
 6. 关闭主窗口只是隐藏到托盘，不会退出；要退出请用托盘右键菜单 →「退出」。
 
@@ -60,6 +60,7 @@ D:\tools\Siming\
 | 名称 | 条目名称 |
 | 状态 | 已停止 / 启动中 / 运行中 / 停止中 |
 | 运行时长 | 本次运行了多久 |
+| 自动启动 | 勾选「随司命启动」的条目显示 `是`，否则留空 |
 | 命令 | 实际执行的命令 |
 | 工作目录 | 命令运行的目录 |
 
@@ -155,7 +156,7 @@ D:\tools\Siming\
 | `name` | 条目名称，建议唯一 |
 | `cwd` | 工作目录，必须是已存在的绝对路径 |
 | `command` | 要执行的命令，会交给 `shell` 执行 |
-| `shell` | `cmd`（默认）/ `powershell` / `pwsh` / `none`（直接执行 exe） |
+| `shell` | `pwsh` / `powershell` / `cmd` / `none`（直接执行 exe）；新建条目的默认值按 pwsh → powershell → cmd 取第一个可用的 |
 | `encoding` | 输出编码：`utf-8`（默认）/ `gbk` |
 | `env` | 追加或覆盖环境变量；值为 `null` 表示删除该变量 |
 | `autoStart` | 司命启动后自动拉起该条目 |

@@ -78,11 +78,13 @@ public sealed class EntryEditForm : Form
         cwdPanel.Controls.Add(browseButton, 1, 0);
 
         _shellBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _shellBox.Items.AddRange(["cmd", "powershell", "pwsh", "none"]);
-        _shellBox.SelectedItem = ShellKinds.Parse(_source.Shell) switch
+        // 顺序即优先级：pwsh → powershell → cmd → 直接执行。
+        _shellBox.Items.AddRange(["pwsh", "powershell", "cmd", "none"]);
+        var initialShell = source is null ? ShellKinds.Preferred() : _source.Shell;
+        _shellBox.SelectedItem = ShellKinds.Parse(initialShell) switch
         {
-            ShellKind.PowerShell => "powershell",
             ShellKind.Pwsh => "pwsh",
+            ShellKind.PowerShell => "powershell",
             ShellKind.None => "none",
             _ => "cmd",
         };

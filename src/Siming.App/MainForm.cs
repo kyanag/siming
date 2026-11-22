@@ -40,7 +40,7 @@ public sealed class MainForm : Form
     private readonly Dictionary<EntryRuntime, ListViewItem> _items = [];
     private readonly Dictionary<string, LogForm> _logForms = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly int[] FixedListColumnLogicalWidths = [190, 130, 100, 280];
+    private static readonly int[] FixedListColumnLogicalWidths = [190, 110, 80, 76, 280];
 
     private const int ColumnScrollbarReserveLogical = 20;
 
@@ -77,8 +77,9 @@ public sealed class MainForm : Form
             SmallImageList = _statusImages,
         };
         _list.Columns.Add("名称", 190);
-        _list.Columns.Add("状态", 130);
-        _list.Columns.Add("运行时长", 100);
+        _list.Columns.Add("状态", 110);
+        _list.Columns.Add("运行时长", 80);
+        _list.Columns.Add("自动启动", 76);
         _list.Columns.Add("命令", 280);
         _list.Columns.Add("工作目录", 320);
 
@@ -706,6 +707,7 @@ public sealed class MainForm : Form
                 };
                 item.SubItems.Add(StatusText(entry));
                 item.SubItems.Add(FormatDuration(entry.Uptime));
+                item.SubItems.Add(entry.Config.AutoStart ? "是" : "");
                 item.SubItems.Add(entry.Config.Command);
                 item.SubItems.Add(entry.Config.Cwd);
                 item.UseItemStyleForSubItems = false;
@@ -1309,6 +1311,7 @@ public sealed class MainForm : Form
         if (_store.TrySave(_store.Current, out var error))
         {
             item.Checked = enabled;
+            RefreshList();
             SetStatus(enabled
                 ? $"「{config.Name}」将在司命启动时自动拉起"
                 : $"「{config.Name}」不再自动拉起");

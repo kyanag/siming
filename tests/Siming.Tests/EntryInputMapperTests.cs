@@ -20,7 +20,7 @@ public sealed class EntryInputMapperTests
         Assert.False(string.IsNullOrWhiteSpace(entry.Id));
         Assert.Equal("demo", entry.Name);
         Assert.Equal("echo 1", entry.Command);
-        Assert.Equal("cmd", entry.Shell);
+        Assert.Equal(ShellKinds.Preferred(), entry.Shell);
         Assert.Equal("utf-8", entry.Encoding);
         Assert.False(entry.AutoStart);
     }

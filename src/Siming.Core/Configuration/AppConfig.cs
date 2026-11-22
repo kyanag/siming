@@ -134,4 +134,43 @@ public static class ShellKinds
         "none" or "direct" => true,
         _ => false,
     };
+
+    /// <summary>新建条目的默认 shell，按 pwsh → powershell → cmd 的顺序取第一个可用的。</summary>
+    public static string Preferred(Func<string, bool>? exists = null)
+    {
+        exists ??= ExistsOnPath;
+
+        if (exists("pwsh.exe"))
+        {
+            return "pwsh";
+        }
+
+        return exists("powershell.exe") ? "powershell" : "cmd";
+    }
+
+    private static bool ExistsOnPath(string fileName)
+    {
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        foreach (var directory in path.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(directory.Trim('"'), fileName)))
+                {
+                    return true;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // PATH 中的非法片段直接跳过。
+            }
+        }
+
+        return false;
+    }
 }

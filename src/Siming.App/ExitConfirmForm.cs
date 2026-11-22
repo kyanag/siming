@@ -78,6 +78,9 @@ public sealed class ExitConfirmForm : Form
 
         AcceptButton = endAll;
         CancelButton = cancel;
+
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Dpi;
     }
 
     public bool KeepRunning { get; private set; }

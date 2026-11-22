@@ -126,6 +126,9 @@ public sealed class LogForm : Form
 
         UpdateState();
         UpdateFooter();
+
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Dpi;
     }
 
     public EntryRuntime Entry => _entry;

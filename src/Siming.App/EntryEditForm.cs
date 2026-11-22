@@ -58,7 +58,7 @@ public sealed class EntryEditForm : Form
         var browseButton = new Button
         {
             Text = "…",
-            Dock = DockStyle.Fill,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
             Margin = new Padding(4, 0, 0, 0),
         };
         browseButton.Click += (_, _) => BrowseCwd();
@@ -211,6 +211,9 @@ public sealed class EntryEditForm : Form
         };
 
         UpdateValidation();
+
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Dpi;
     }
 
     public EntryConfig? Result { get; private set; }

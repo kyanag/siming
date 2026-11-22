@@ -40,6 +40,9 @@ public sealed class MainForm : Form
     private readonly Dictionary<EntryRuntime, ListViewItem> _items = [];
     private readonly Dictionary<string, LogForm> _logForms = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly int[] ListColumnLogicalWidths = [190, 130, 100, 280, 320];
+
+    private int _listColumnDpi;
     private GeneratedIcon? _idleIcon;
     private GeneratedIcon? _runningIcon;
     private ControlServer? _controlServer;
@@ -208,6 +211,11 @@ public sealed class MainForm : Form
 
         RefreshList();
         UpdateTrayIcon();
+
+        // 必须在控件和默认尺寸都设置好之后再开启缩放：
+        // WinForms 会在 AutoScaleMode 变化时立即按当前 DPI 执行一次 AutoScale。
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        AutoScaleMode = AutoScaleMode.Dpi;
     }
 
     public void ShowFromTray()
@@ -546,6 +554,47 @@ public sealed class MainForm : Form
         }
 
         return InvokeRequired ? (T)Invoke(func) : func();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyListColumnWidths(DeviceDpi);
+    }
+
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+
+        if (_listColumnDpi <= 0 || e.DeviceDpiOld <= 0 || e.DeviceDpiNew <= 0)
+        {
+            return;
+        }
+
+        var ratio = (double)e.DeviceDpiNew / e.DeviceDpiOld;
+        foreach (ColumnHeader column in _list.Columns)
+        {
+            column.Width = Math.Max(1, (int)Math.Round(column.Width * ratio));
+        }
+
+        _listColumnDpi = e.DeviceDpiNew;
+    }
+
+    private void ApplyListColumnWidths(int dpi)
+    {
+        if (dpi <= 0 || _list.Columns.Count < ListColumnLogicalWidths.Length)
+        {
+            return;
+        }
+
+        for (var index = 0; index < ListColumnLogicalWidths.Length; index++)
+        {
+            _list.Columns[index].Width = Math.Max(
+                1,
+                (int)Math.Round(ListColumnLogicalWidths[index] * dpi / 96.0));
+        }
+
+        _listColumnDpi = dpi;
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

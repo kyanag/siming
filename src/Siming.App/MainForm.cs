@@ -40,9 +40,10 @@ public sealed class MainForm : Form
     private readonly Dictionary<EntryRuntime, ListViewItem> _items = [];
     private readonly Dictionary<string, LogForm> _logForms = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly int[] ListColumnLogicalWidths = [190, 130, 100, 280, 320];
+    private static readonly int[] FixedListColumnLogicalWidths = [190, 130, 100, 280];
 
-    private int _listColumnDpi;
+    private const int ColumnScrollbarReserveLogical = 20;
+
     private GeneratedIcon? _idleIcon;
     private GeneratedIcon? _runningIcon;
     private ControlServer? _controlServer;
@@ -196,6 +197,7 @@ public sealed class MainForm : Form
         _store.Changed += (_, e) => Ui(() => OnConfigChanged(e.Result));
 
         _list.SelectedIndexChanged += (_, _) => UpdateButtons();
+        _list.SizeChanged += (_, _) => ApplyListColumnWidths(DeviceDpi);
         _list.DoubleClick += (_, _) =>
         {
             if (Selected is { } entry)
@@ -565,36 +567,31 @@ public sealed class MainForm : Form
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
         base.OnDpiChanged(e);
-
-        if (_listColumnDpi <= 0 || e.DeviceDpiOld <= 0 || e.DeviceDpiNew <= 0)
-        {
-            return;
-        }
-
-        var ratio = (double)e.DeviceDpiNew / e.DeviceDpiOld;
-        foreach (ColumnHeader column in _list.Columns)
-        {
-            column.Width = Math.Max(1, (int)Math.Round(column.Width * ratio));
-        }
-
-        _listColumnDpi = e.DeviceDpiNew;
+        ApplyListColumnWidths(e.DeviceDpiNew);
     }
 
     private void ApplyListColumnWidths(int dpi)
     {
-        if (dpi <= 0 || _list.Columns.Count < ListColumnLogicalWidths.Length)
+        if (dpi <= 0 || _list.Columns.Count < FixedListColumnLogicalWidths.Length + 1)
         {
             return;
         }
 
-        for (var index = 0; index < ListColumnLogicalWidths.Length; index++)
+        var scale = dpi / 96.0;
+        var used = 0;
+
+        for (var index = 0; index < FixedListColumnLogicalWidths.Length; index++)
         {
-            _list.Columns[index].Width = Math.Max(
-                1,
-                (int)Math.Round(ListColumnLogicalWidths[index] * dpi / 96.0));
+            var width = Math.Max(1, (int)Math.Round(FixedListColumnLogicalWidths[index] * scale));
+            _list.Columns[index].Width = width;
+            used += width;
         }
 
-        _listColumnDpi = dpi;
+        // 最后一列吃掉剩余宽度，并预留垂直滚动条的位置，避免默认出现水平滚动条。
+        var reserve = Math.Max(1, (int)Math.Round(ColumnScrollbarReserveLogical * scale));
+        _list.Columns[^1].Width = Math.Max(
+            (int)Math.Round(140 * scale),
+            _list.ClientSize.Width - used - reserve);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

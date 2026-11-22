@@ -7,20 +7,20 @@ namespace Siming.Tests;
 public sealed class TrayActionMenuTests
 {
     [Fact]
-    public void Build_ReturnsNull_WhenNoActionsConfigured()
+    public void Build_ReturnsNothing_WhenNoActionsConfigured()
     {
         using var supervisor = new ProcessSupervisor(new AppConfig
         {
             Entries = [Entry(actions: null)],
         });
 
-        var menu = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
+        var items = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
 
-        Assert.Null(menu);
+        Assert.Empty(items);
     }
 
     [Fact]
-    public void Build_ReturnsNull_WhenAllLabelsAreBlank()
+    public void Build_ReturnsNothing_WhenAllLabelsAreBlank()
     {
         using var supervisor = new ProcessSupervisor(new AppConfig
         {
@@ -33,9 +33,9 @@ public sealed class TrayActionMenuTests
             ],
         });
 
-        var menu = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
+        var items = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
 
-        Assert.Null(menu);
+        Assert.Empty(items);
     }
 
     [Fact]
@@ -56,19 +56,17 @@ public sealed class TrayActionMenuTests
             ],
         });
 
-        var menu = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
+        var items = TrayActionMenu.Build(supervisor.Snapshot()[0], (_, _, _, _) => { });
 
-        Assert.NotNull(menu);
-        Assert.Equal("其他", menu!.Text);
         Assert.Equal(
             ["打开链接", "复制链接", "复制密码", "跑测试", "怪动作"],
-            menu.DropDownItems.Cast<ToolStripItem>().Select(item => item.Text));
+            items.Select(item => item.Text));
 
         // 没提取到值：置灰但不隐藏。
-        Assert.All(menu.DropDownItems.Cast<ToolStripItem>(), item => Assert.False(item.Enabled));
-        Assert.Equal("尚未支持（v2-b）", menu.DropDownItems[3].ToolTipText);
-        Assert.StartsWith("未知的动作类型", menu.DropDownItems[4].ToolTipText);
-        Assert.Equal("等待程序输出所需的值", menu.DropDownItems[0].ToolTipText);
+        Assert.All(items, item => Assert.False(item.Enabled));
+        Assert.Equal("尚未支持（v2-b）", items[3].ToolTipText);
+        Assert.StartsWith("未知的动作类型", items[4].ToolTipText);
+        Assert.Equal("等待程序输出所需的值", items[0].ToolTipText);
     }
 
     [Fact]
@@ -112,13 +110,13 @@ public sealed class TrayActionMenuTests
         }
 
         var calls = new List<(ActionKind Kind, string Payload)>();
-        var menu = TrayActionMenu.Build(entry, (_, kind, _, payload) => calls.Add((kind, payload)));
+        var items = TrayActionMenu.Build(entry, (_, kind, _, payload) => calls.Add((kind, payload)));
 
-        Assert.NotNull(menu);
-        Assert.All(menu!.DropDownItems.Cast<ToolStripItem>(), item => Assert.True(item.Enabled));
+        Assert.Equal(2, items.Count);
+        Assert.All(items, item => Assert.True(item.Enabled));
 
-        menu.DropDownItems[0].PerformClick();
-        menu.DropDownItems[1].PerformClick();
+        items[0].PerformClick();
+        items[1].PerformClick();
 
         Assert.Equal(
             [
@@ -131,8 +129,8 @@ public sealed class TrayActionMenuTests
 
         // 停止后值被清空，重建的菜单重新置灰。
         var stopped = TrayActionMenu.Build(entry, (_, _, _, _) => { });
-        Assert.NotNull(stopped);
-        Assert.All(stopped!.DropDownItems.Cast<ToolStripItem>(), item => Assert.False(item.Enabled));
+        Assert.Equal(2, stopped.Count);
+        Assert.All(stopped, item => Assert.False(item.Enabled));
     }
 
     private static EntryConfig Entry(List<ActionConfig>? actions) => new()

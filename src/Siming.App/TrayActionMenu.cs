@@ -5,23 +5,23 @@ using Siming.Core.Processes;
 namespace Siming.App;
 
 /// <summary>
-/// 条目子菜单底部的「其他 ▸」：结构由配置决定，可用性由运行时决定。
+/// 条目子菜单底部的快捷动作：结构由配置决定，可用性由运行时决定。
 /// 拆成独立类是为了能脱离窗口做单元测试。
 /// </summary>
 internal static class TrayActionMenu
 {
-    public static ToolStripMenuItem? Build(
+    /// <summary>按配置顺序生成动作项；没有可显示的动作时返回空列表。</summary>
+    public static IReadOnlyList<ToolStripItem> Build(
         EntryRuntime entry,
         Action<EntryRuntime, ActionKind, ActionConfig, string> execute)
     {
         var actions = entry.Config.Actions;
         if (actions is null || actions.Count == 0)
         {
-            return null;
+            return [];
         }
 
-        var more = new ToolStripMenuItem("其他");
-        more.DropDown.ShowItemToolTips = true;
+        var items = new List<ToolStripItem>();
 
         foreach (var action in actions)
         {
@@ -48,10 +48,10 @@ internal static class TrayActionMenu
                 };
             }
 
-            more.DropDownItems.Add(item);
+            items.Add(item);
         }
 
-        return more.DropDownItems.Count == 0 ? null : more;
+        return items;
     }
 
     internal static bool TryResolvePayload(

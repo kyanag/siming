@@ -176,7 +176,7 @@ public sealed class MainForm : Form
         Controls.Add(_toolbar);
         Controls.Add(_statusBar);
 
-        _trayMenu = new ContextMenuStrip { ShowImageMargin = false };
+        _trayMenu = new ContextMenuStrip { ShowImageMargin = false, ShowItemToolTips = true };
         _trayMenu.Opening += (_, _) => BuildTrayMenu();
 
         _tray = new NotifyIcon
@@ -1378,10 +1378,14 @@ public sealed class MainForm : Form
             parent.DropDownItems.Add(MenuItem("打开工作目录", () => OpenDirectory(entry)));
             parent.DropDownItems.Add(MenuItem("复制命令", () => CopyCommand(entry)));
 
-            if (TrayActionMenu.Build(entry, RunAction) is { } actionMenu)
+            var actionItems = TrayActionMenu.Build(entry, RunAction);
+            if (actionItems.Count > 0)
             {
                 parent.DropDownItems.Add(new ToolStripSeparator());
-                parent.DropDownItems.Add(actionMenu);
+                foreach (var actionItem in actionItems)
+                {
+                    parent.DropDownItems.Add(actionItem);
+                }
             }
 
             _trayMenu.Items.Add(parent);

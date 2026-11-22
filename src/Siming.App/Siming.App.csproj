@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="app.ico" LogicalName="Siming.App.app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Siming.Core\Siming.Core.csproj" />
   </ItemGroup>
 

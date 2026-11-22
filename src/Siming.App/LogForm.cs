@@ -32,6 +32,7 @@ public sealed class LogForm : Form
         _entry = entry;
         _supervisor = supervisor;
 
+        Icon = AppIcon.Shared;
         Text = $"{entry.Config.Name} — 日志";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(780, 540);

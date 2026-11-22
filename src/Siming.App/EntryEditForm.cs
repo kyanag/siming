@@ -23,6 +23,7 @@ public sealed class EntryEditForm : Form
             otherNames.Where(name => !string.IsNullOrWhiteSpace(name)),
             StringComparer.OrdinalIgnoreCase);
 
+        Icon = AppIcon.Shared;
         Text = source is null ? "新增条目" : "编辑条目";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;

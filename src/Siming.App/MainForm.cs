@@ -56,6 +56,7 @@ public sealed class MainForm : Form
         _store = store;
         _supervisor = supervisor;
 
+        Icon = AppIcon.Shared;
         Text = "司命";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1000, 560);

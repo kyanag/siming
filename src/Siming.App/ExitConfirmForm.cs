@@ -6,6 +6,7 @@ public sealed class ExitConfirmForm : Form
 {
     public ExitConfirmForm(IReadOnlyList<EntryRuntime> running)
     {
+        Icon = AppIcon.Shared;
         Text = "退出司命";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;

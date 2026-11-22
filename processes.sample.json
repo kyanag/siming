@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "settings": {
+    "logLines": 200,
+    "startWithWindows": false
+  },
+  "entries": [
+    {
+      "id": "blog-dev",
+      "name": "Blog Dev",
+      "cwd": "D:\\projects\\blog",
+      "command": "npm run dev",
+      "shell": "cmd",
+      "encoding": "utf-8",
+      "env": {
+        "PORT": "3000"
+      },
+      "autoStart": false
+    },
+    {
+      "id": "api",
+      "name": "API Server",
+      "cwd": "D:\\projects\\api",
+      "command": "dotnet run",
+      "shell": "cmd",
+      "encoding": "utf-8",
+      "autoStart": false
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Siming.App/Siming.App.csproj" />
+    <Project Path="src/Siming.Core/Siming.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Siming.Tests/Siming.Tests.csproj" />
+  </Folder>
+</Solution>

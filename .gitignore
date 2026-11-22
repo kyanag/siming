@@ -1,0 +1,23 @@
+## Build results
+bin/
+obj/
+artifacts/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+## Test results
+TestResults/
+*.trx
+coverage/
+
+## Local config (portable mode keeps processes.json next to the exe)
+src/Siming.App/bin/**/processes.json
+
+## OS
+Thumbs.db
+desktop.ini

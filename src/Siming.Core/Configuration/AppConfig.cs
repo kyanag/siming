@@ -53,6 +53,9 @@ public sealed class EntryConfig
     /// <summary>v2 快捷操作；v1 不展示，但必须原样保留。</summary>
     public List<ActionConfig>? Actions { get; set; }
 
+    /// <summary>v2 日志字段提取：变量名 → 规则。字符串即 regex 简写。</summary>
+    public Dictionary<string, ExtractRule>? Extract { get; set; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 
@@ -80,6 +83,28 @@ public sealed class ActionConfig
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+public enum ActionKind
+{
+    Open,
+    Copy,
+    Command,
+    Unknown,
+}
+
+public static class ActionKinds
+{
+    public static ActionKind Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "open" or null or "" => ActionKind.Open,
+        "copy" => ActionKind.Copy,
+        "command" or "run" => ActionKind.Command,
+        _ => ActionKind.Unknown,
+    };
+
+    /// <summary>v2-a 已实现 open / copy；command 留给 v2-b。</summary>
+    public static bool IsImplemented(ActionKind kind) => kind is ActionKind.Open or ActionKind.Copy;
 }
 
 public enum ShellKind

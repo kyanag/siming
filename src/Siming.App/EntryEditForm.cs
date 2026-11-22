@@ -262,6 +262,7 @@ public sealed class EntryEditForm : Form
             Env = BuildEnvironment(),
             AutoStart = _autoStartBox.Checked,
             Actions = _source.Actions,
+            Extract = _source.Extract,
             Extra = _source.Extra,
         };
 

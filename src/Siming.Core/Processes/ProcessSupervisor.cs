@@ -148,6 +148,7 @@ public sealed class ProcessSupervisor : IDisposable
                 if (incoming.TryGetValue(existing.Config.Key, out var next))
                 {
                     existing.Config = next;
+                    existing.ReconfigureExtractor();
                     existing.IsOrphan = false;
                     incoming.Remove(next.Key);
                 }
@@ -277,6 +278,7 @@ public sealed class ProcessSupervisor : IDisposable
         }
 
         entry.LastError = null;
+        entry.Extractor.Reset();
         entry.State = EntryState.Starting;
         RaiseState(entry);
 
@@ -380,6 +382,7 @@ public sealed class ProcessSupervisor : IDisposable
             entry.State = EntryState.Stopped;
             entry.Pid = null;
             entry.LastExitedAt = DateTimeOffset.Now;
+            entry.Extractor.Reset();
             RaiseState(entry);
         }
     }
@@ -411,6 +414,7 @@ public sealed class ProcessSupervisor : IDisposable
             entry.LastExitCode = exitCode;
             entry.LastExitedAt = DateTimeOffset.Now;
             entry.State = EntryState.Stopped;
+            entry.Extractor.Reset();
             RaiseState(entry);
         }
 
@@ -454,6 +458,7 @@ public sealed class ProcessSupervisor : IDisposable
         entry.LastExitCode = null;
         entry.State = EntryState.Stopped;
         entry.Pid = null;
+        entry.Extractor.Reset();
         entry.Log.Add($"[司命] 启动失败：{message}");
         RaiseState(entry);
     }

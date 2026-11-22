@@ -30,4 +30,8 @@
     <ProjectReference Include="..\Siming.Core\Siming.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Siming.Tests" />
+  </ItemGroup>
+
 </Project>

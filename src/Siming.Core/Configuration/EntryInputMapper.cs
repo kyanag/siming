@@ -47,6 +47,7 @@ public static class EntryInputMapper
             Env = input.Env ?? existing?.Env,
             AutoStart = input.AutoStart ?? existing?.AutoStart ?? false,
             Actions = input.Actions ?? existing?.Actions,
+            Extract = input.Extract ?? existing?.Extract,
             Extra = existing?.Extra,
         };
 

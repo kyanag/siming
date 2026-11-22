@@ -24,7 +24,14 @@
       "command": "dotnet run",
       "shell": "cmd",
       "encoding": "utf-8",
-      "autoStart": false
+      "autoStart": false,
+      "extract": {
+        "url": "Now listening on: (https?://\\S+)"
+      },
+      "actions": [
+        { "label": "打开站点", "type": "open", "target": "${url}" },
+        { "label": "复制地址", "type": "copy", "text": "${url}" }
+      ]
     }
   ]
 }

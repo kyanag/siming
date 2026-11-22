@@ -247,6 +247,7 @@ public sealed class MainForm : Form
         }
 
         StartControlServer();
+        ReportExtractError();
 
         try
         {
@@ -826,12 +827,31 @@ public sealed class MainForm : Form
         {
             _supervisor.ApplyConfig(result.Config);
             ReconcileStartupSetting();
-            SetStatus($"配置已重载 {DateTime.Now:HH:mm:ss}");
+            if (!ReportExtractError())
+            {
+                SetStatus($"配置已重载 {DateTime.Now:HH:mm:ss}");
+            }
         }
         else
         {
             SetStatus($"配置有误：{result.Error}", error: true);
         }
+    }
+
+    /// <summary>提取规则写错时只在状态栏提示，不阻塞启动与配置加载。</summary>
+    private bool ReportExtractError()
+    {
+        var error = _supervisor.Snapshot()
+            .Select(entry => entry.Extractor.ConfigurationError)
+            .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message));
+
+        if (error is null)
+        {
+            return false;
+        }
+
+        SetStatus($"提取规则有误：{error}", error: true);
+        return true;
     }
 
     private void ReconcileStartupSetting()
@@ -1261,6 +1281,29 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>执行「其他 ▸」里的快捷动作；失败只出气泡，不改条目状态。</summary>
+    private void RunAction(EntryRuntime entry, ActionKind kind, ActionConfig action, string payload)
+    {
+        try
+        {
+            switch (kind)
+            {
+                case ActionKind.Copy:
+                    Clipboard.SetText(payload);
+                    SetStatus($"已复制「{entry.Config.Name}」的{action.Label.Trim()}");
+                    break;
+                case ActionKind.Open:
+                    Process.Start(new ProcessStartInfo(payload) { UseShellExecute = true });
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"动作「{action.Label}」失败：{ex.Message}", error: true);
+            Balloon("动作失败", $"「{action.Label}」：{ex.Message}");
+        }
+    }
+
     private void OpenConfigFile()
     {
         try
@@ -1334,6 +1377,12 @@ public sealed class MainForm : Form
             parent.DropDownItems.Add(MenuItem("查看日志", () => OpenLog(entry)));
             parent.DropDownItems.Add(MenuItem("打开工作目录", () => OpenDirectory(entry)));
             parent.DropDownItems.Add(MenuItem("复制命令", () => CopyCommand(entry)));
+
+            if (TrayActionMenu.Build(entry, RunAction) is { } actionMenu)
+            {
+                parent.DropDownItems.Add(new ToolStripSeparator());
+                parent.DropDownItems.Add(actionMenu);
+            }
 
             _trayMenu.Items.Add(parent);
         }

@@ -66,6 +66,9 @@ public sealed class EntryInput
     public bool? AutoStart { get; set; }
 
     public List<ActionConfig>? Actions { get; set; }
+
+    /// <summary>v2 日志提取规则；只写配置，不返回已提取的值。</summary>
+    public Dictionary<string, ExtractRule>? Extract { get; set; }
 }
 
 public sealed class EntryStatus

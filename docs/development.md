@@ -107,7 +107,7 @@ powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 ## 结构
 
 ```text
-src/Siming.Core     配置、日志环形缓冲、CreateProcess / Job Object、状态机、控制协议
+src/Siming.Core     配置、日志环形缓冲、日志字段提取、CreateProcess / Job Object、状态机、控制协议
 src/Siming.App      WinForms：托盘、主窗口、日志窗、编辑/退出对话框
 src/Siming.App/Mcp  MCP 服务、控制客户端、配置降级读写
 tests/Siming.Tests  xUnit
@@ -119,6 +119,7 @@ tests/Siming.Tests  xUnit
 - 停止先投递 Ctrl+C，5 秒超时后 `TerminateJobObject`
 - 单实例 Mutex + 唤起事件
 - 配置固定在 `AppContext.BaseDirectory\processes.json`，FileSystemWatcher 防抖重载
+- 日志字段提取挂在 `LogBuffer.Appended` 上逐行匹配（输入已剥 ANSI、已解码），正则带 100ms 超时；热重载按字段比对正则，只复位改过的那一项
 - 高 DPI：`PerMonitorV2`，构造函数末尾启用 `AutoScaleMode.Dpi`；ListView 列宽单独按 DPI 计算
 - 应用图标由内嵌的多尺寸 `app.ico` 提供；托盘图标按运行状态动态生成
 

@@ -1,72 +1,117 @@
 # 司命（Siming）
 
-Windows 托盘进程开关面板。给一条 `cwd + 命令`，在托盘里启动、停止、重启，并把整棵进程树停干净。
+Windows 托盘进程管理器：把常用命令收进托盘，一键启动、停止、重启，并把整棵进程树停干净。
 
-> 当前状态：v1.1 完成（M1–M4）。
+适合管理 `npm run dev`、`python app.py`、`dotnet run` 这类需要长期运行、又不想一直开着终端的命令。
 
-## 已实现
+## 能做什么
 
-- `processes.json` 读写；文件不存在时自动创建；外部修改后自动重载
-- 托盘图标：「司」字，空闲单色、有进程运行变绿；动态右键菜单
-- 主窗口：条目列表（状态 / 运行时长 / 命令 / 工作目录）
-- 条目增删改：名称、工作目录、命令、shell、编码、环境变量、自启动；上移/下移
-- 启动、停止、重启；停止先发 Ctrl+C，5 秒未退则 Job Object 整树强杀
-- 每条目日志窗口：最近 200 行，环形缓冲；向上翻自动暂停，可回到底部
-- 退出三选一：结束所有 / 保留进程 / 取消；异常退出由 kill-on-close 兜底
-- 单实例；重复启动会唤起已有窗口
-- 高 DPI 适配：PerMonitorV2 + `AutoScaleMode.Dpi`，4K 200% 缩放下窗口与控件按倍数放大
-- 开机自启开关（托盘菜单与主窗口工具条），写入 `HKCU\...\Run`，登录后以 `--tray` 静默启动
-- **MCP 接入**：同一份 `Siming.exe` 带 `--mcp` 模式，可作为 stdio MCP 服务；AI 可直接列出 / 新增 / 修改 / 删除 / 启停条目并读日志，详见 [docs/mcp.md](docs/mcp.md)
+- 为每个项目配置一条「工作目录 + 命令」
+- 从托盘或主窗口启动、停止、重启
+- 停止时先尝试正常中断，5 秒未退出就强制结束整棵进程树
+- 进程自己退出后只标记为「已停止」，不会自动重启
+- 查看每个条目的实时日志（默认最近 200 行）
+- 开机自动启动，登录后静默进托盘
+- 单实例运行，重复启动会唤起已有窗口
+- 自动适配高 DPI（4K 200% 等）
+- 同一份 exe 可作为 MCP 服务，让 AI 帮你管理条目
 
-## 构建与运行
+## 目录里有什么
 
-```powershell
-dotnet build Siming.slnx
-dotnet run --project src/Siming.App
+```text
+D:\tools\Siming\
+├── Siming.exe        主程序（同时提供 --mcp 模式）
+├── processes.json    配置：条目、日志行数、开机自启
+└── mcp.token         本机控制接口令牌（使用 AI 接入时才会用到）
 ```
 
-可执行文件：`src/Siming.App/bin/Debug/net10.0-windows/Siming.exe`
+整个目录可以直接拷贝到其他位置或其他电脑，配置会跟着走（目标电脑需要满足[系统要求](#系统要求)）。
 
-静默启动（只进托盘）：
+## 快速开始
 
-```powershell
-& .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --tray
-```
+1. 把 `Siming.exe` 放到一个**有写权限**的目录，例如 `D:\tools\Siming`。
+2. 双击运行。首次启动会在 exe 同目录创建 `processes.json` 和 `mcp.token`。
+3. 托盘出现「司」图标，同时打开主窗口。
+   - Windows 11 如果没看到图标，点任务栏右下角的 `^` 展开隐藏图标。
+4. 点「新增」，填写：
+   - **名称**：例如 `Blog Dev`
+   - **工作目录**：例如 `D:\projects\blog`
+   - **命令**：例如 `npm run dev`
+   - **Shell**：一般选 `cmd`；PowerShell 脚本选 `powershell`
+5. 保存后选中条目，点「启动」。状态变为「运行中」，托盘图标变绿。
+6. 关闭主窗口只是隐藏到托盘，不会退出；要退出请用托盘右键菜单 →「退出」。
 
-以 stdio MCP 服务运行（供 AI 客户端调用）：
+> 约 4 MB 的版本需要安装 .NET 10 Desktop Runtime；约 51 MB 的自包含版本不需要。详见[系统要求](#系统要求)。
 
-```powershell
-& .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --mcp
-```
+## 主窗口
 
-## 发布
+列表显示：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
-```
+| 列 | 说明 |
+|---|---|
+| 名称 | 条目名称 |
+| 状态 | 已停止 / 启动中 / 运行中 / 停止中 |
+| 运行时长 | 本次运行了多久 |
+| 命令 | 实际执行的命令 |
+| 工作目录 | 命令运行的目录 |
 
-默认发布到 `D:\tools\Siming`，产出：
+工具条：启动、停止、重启、日志、新增、编辑、删除、上移/下移、重载配置、打开配置、开机自启。
 
-- `Siming.exe`：托盘主程序 + stdio MCP 模式（`Siming.exe --mcp`），框架依赖单文件，约 4 MB
-- `processes.json`：目标目录不存在时从开发配置或示例播种
+双击条目可以直接打开日志。
 
-默认版本内存占用低（每个进程约 10–20 MB），但目标机器需要 .NET 10 Desktop Runtime。发布前需要先退出正在运行的司命；如果 AI 客户端正通过 `--mcp` 使用司命，也要先重启该客户端，否则 exe 被占用。可以用 `-Target` 指定其他目录。
+### 快捷键
 
-需要拷贝到没装 .NET 的机器时，用 `-SelfContained` 输出自包含单文件（约 51 MB，压缩版，每个进程私有内存约 50–70 MB）：
+| 快捷键 | 作用 |
+|---|---|
+| `F5` | 启动 / 停止选中条目 |
+| `Ctrl+R` | 重启选中条目 |
+| `Ctrl+L` | 查看日志 |
+| `Ctrl+N` | 新增条目 |
+| `Enter` / `F2` | 编辑条目 |
+| `Delete` | 删除条目 |
+| `Ctrl+↑` / `Ctrl+↓` | 上移 / 下移 |
+| `Esc` | 隐藏主窗口 |
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -SelfContained
-```
+## 托盘菜单
 
-`-Thin` 仍可用，等同于默认的框架依赖版本。
+- **左键**托盘图标：打开主窗口
+- **右键**托盘图标：打开菜单
 
-MCP 客户端配置见 [docs/mcp.md](docs/mcp.md)。
+每个条目都有一个子菜单，根据当前状态提供：
 
-要求 .NET 10 SDK（项目目标 `net10.0-windows`）。
+- 启动 / 停止 / 重启 / 取消启动
+- 查看日志
+- 打开工作目录
+- 复制命令
+
+菜单底部还有：全部启动、全部停止、打开主窗口、打开配置文件所在文件夹、开机自启、退出。
+
+## 日志
+
+- 只读窗口，默认保留最近 **200 行**，可在 `processes.json` 的 `logLines` 中调整（100–5000）
+- 向上滚动时自动暂停；点「回到底部」恢复跟随
+- 工具条可以重启/停止条目、复制全部、清空、切换自动滚动
+- 日志只存在内存里，**退出司命后清空**
+
+## 退出
+
+托盘右键 →「退出」时有三个选择：
+
+| 选项 | 行为 |
+|---|---|
+| 结束所有并退出 | 停止所有运行中的条目，然后退出 |
+| 保留进程并退出 | 司命退出，进程继续运行，但不再受司命管理 |
+| 取消 | 不退出 |
+
+如果司命异常退出，会尽量结束自己启动的进程，避免端口被占用。
+
+## 开机自启
+
+在主窗口工具条或托盘菜单里勾选「开机自启」。司命会在当前用户的启动项中登记，不需要管理员权限；登录后以 `--tray` 静默启动，不弹主窗口。移动程序目录后启动一次司命会自动校正启动项；如果没有，重新勾选一次即可。
 
 ## 配置
 
-配置文件固定为 **exe 同目录** 的 `processes.json`，不写 `%APPDATA%`。参考 [processes.sample.json](processes.sample.json)：
+配置文件固定为 **exe 同目录**的 `processes.json`，不写 `%APPDATA%`。参考 [processes.sample.json](processes.sample.json)：
 
 ```json
 {
@@ -90,48 +135,117 @@ MCP 客户端配置见 [docs/mcp.md](docs/mcp.md)。
 }
 ```
 
+> JSON 中的 Windows 路径需要把反斜杠写成 `\\`，例如 `D:\\projects\\blog`。
+
+### 字段说明
+
 | 字段 | 说明 |
 |---|---|
+| `name` | 条目名称，建议唯一 |
+| `cwd` | 工作目录，必须是已存在的绝对路径 |
+| `command` | 要执行的命令，会交给 `shell` 执行 |
 | `shell` | `cmd`（默认）/ `powershell` / `pwsh` / `none`（直接执行 exe） |
-| `encoding` | `utf-8`（默认）/ `gbk` |
-| `env` | 合并进系统环境，值为 `null` 表示删除该变量 |
-| `autoStart` | 软件启动后自动拉起 |
-| `actions` | v2 快捷操作，v1 不展示但保存时原样保留 |
+| `encoding` | 输出编码：`utf-8`（默认）/ `gbk` |
+| `env` | 追加或覆盖环境变量；值为 `null` 表示删除该变量 |
+| `autoStart` | 司命启动后自动拉起该条目 |
+| `id` | 稳定标识，界面会自动生成，一般不用改 |
+| `actions` | 预留的快捷操作字段，当前版本不展示，保存时原样保留 |
 
-M1–M3 已包含条目编辑界面；也可以直接编辑 JSON，保存后自动重载。界面首次保存没有 `id` 的条目时会自动生成并回写，确保改名不会改变运行时身份。
+`settings`：
 
-## 自检
+| 字段 | 说明 |
+|---|---|
+| `logLines` | 每个条目保留的日志行数，默认 200，范围 100–5000 |
+| `startWithWindows` | 是否开机自启 |
 
-在无控制台的真实 WinExe 环境里验证「启动 → Ctrl+C → 整树终止」：
+可以在界面里编辑，也可以直接改 JSON。保存后会自动重载；如果运行中改坏了 JSON，司命会继续使用当前配置，并在状态栏提示错误。启动时文件有误会给出提示，并以空配置启动。
 
-```powershell
-& .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --selftest
-Get-Content $env:TEMP\siming-selftest.log
+> 修改正在运行的条目后，界面会询问是否立即重启使新配置生效。
+
+### 命令示例
+
+| 场景 | `shell` | `command` |
+|---|---|---|
+| Node / npm | `cmd` | `npm run dev` |
+| Python | `cmd` | `python app.py` |
+| .NET | `cmd` | `dotnet run` |
+| PowerShell 脚本 | `powershell` | `& 'D:\models\run_server.ps1'` |
+| 直接运行 exe | `none` | `D:\tools\server\server.exe` |
+
+命令会整体交给对应的 shell 执行；路径里有空格时，记得用引号包起来。
+
+## 用 AI 管理（MCP）
+
+同一份 `Siming.exe` 也可以作为 MCP 服务运行，不需要额外程序。以 Claude Desktop 为例：
+
+```json
+{
+  "mcpServers": {
+    "siming": {
+      "command": "D:\\tools\\Siming\\Siming.exe",
+      "args": ["--mcp"]
+    }
+  }
+}
 ```
 
-预期 `result: PASS`，且 `graceful=True`（通常在 100ms 内）。
+Cursor、VS Code、OpenCode 等客户端的配置见 [docs/mcp.md](docs/mcp.md)。
 
-## 测试
+配置后可以直接对 AI 说：
 
-```powershell
-dotnet test tests/Siming.Tests
-```
+- 「把 `D:\projects\blog` 的 `npm run dev` 加进司命，名字叫 Blog Dev」
+- 「启动 Blog Dev，然后给我最近 50 行日志」
+- 「把 Blog Dev 的端口改成 8081，然后重启」
 
-覆盖：配置读写与未知字段保留、坏 JSON 保留旧配置、子进程输出捕获、整树终止、重启、启动失败提示。
+说明：
 
-## 结构
+- 司命主程序没运行时，配置类操作会直接改 `processes.json`；启动/停止类操作会自动拉起托盘程序。
+- 日志只在主程序运行期间存在，主程序没运行时读不到。
+- 修改运行中的条目不会自动重启；需要再让 AI 重启，或在界面里确认重启。
+- 控制接口只绑定本机 `127.0.0.1:17321`，使用 `mcp.token` 鉴权。不要把令牌发给别人。
 
-```
-src/Siming.Core     配置、日志环形缓冲、CreateProcess/Job Object、状态机
-src/Siming.App      WinForms：托盘、主窗口、日志窗、编辑/退出对话框
-tests/Siming.Tests  xUnit
-```
+## 系统要求
 
-设计文档在 `D:\projects\ideas\idea3\docs`（PRD、UI 稿）。
+- Windows 10 / 11，x64
+- 普通使用不需要管理员权限；命令本身需要管理员权限时，请以管理员身份运行司命
+
+两种发布版本，功能完全一样，按需选择：
+
+| 版本 | 大小 | 需要安装 .NET | 内存特点 |
+|---|---|---|---|
+| 框架依赖版（默认） | 约 4 MB | 需要 .NET 10 Desktop Runtime | 较低，每个进程约 10–20 MB |
+| 自包含版 | 约 51 MB | 不需要 | 较高，每个进程约 50–70 MB |
+
+### 便携使用
+
+- 配置和程序放在同一目录，不写 `%APPDATA%`
+- 拷贝整个目录即可迁移
+- `mcp.token` 是本机控制接口的密钥，不要随目录公开分享
+
+## 常见问题
+
+| 现象 | 处理 |
+|---|---|
+| 托盘里找不到图标 | Windows 11 点 `^` 展开隐藏图标；或在任务栏设置里允许显示 |
+| 任务栏图标空白或还是旧图标 | 升级后重新固定一次；Windows 会缓存任务栏图标 |
+| 启动失败 | 检查工作目录是否存在、命令是否能手动执行、Shell 是否选对；打开日志看错误 |
+| 停止后还有残留进程 | 司命会先正常中断，5 秒后强制结束整棵进程树；如果之前选过「保留进程」，该进程已不再受管理 |
+| 改了配置没生效 | 检查 JSON 是否合法；状态栏会显示配置错误；修正后自动重载 |
+| AI 看不到 `siming_*` 工具 | 确认客户端配置里带了 `"args": ["--mcp"]`，然后重启客户端；详见 [docs/mcp.md](docs/mcp.md) |
+| 日志为空 | 日志只在内存中；确认主程序正在运行、条目已经产生输出 |
+| 控制接口报端口占用 | 17321 被其他程序占用；关闭冲突程序后重启司命 |
+| 内存占用偏高 | 确认使用的是约 4 MB 的框架依赖版；51 MB 自包含压缩版每个进程会多占几十 MB |
 
 ## 已知限制
 
-- 托盘图标只在启动时读取任务栏明暗主题
-- 运行中修改条目的命令，会提示是否立即重启
-- 选择「保留进程」后，子进程的 stdout/stderr 管道会随软件退出而关闭；个别程序写入失败可能自行退出
-- 快捷键只在主窗口生效：`F5` 启停、`Ctrl+R` 重启、`Ctrl+L` 日志、`Ctrl+N` 新增、`Enter`/`F2` 编辑、`Delete` 删除、`Ctrl+↑`/`Ctrl+↓` 排序、`Esc` 隐藏
+- 仅支持 Windows
+- 不提供自动重启、健康检查、端口检测、文件监听或构建流水线（有意保持简单）
+- 日志只在内存中，每个条目最多 5000 行，退出后丢失
+- 选择「保留进程并退出」后，子进程的输出管道会关闭；个别程序可能因此自行退出
+- 托盘图标的明暗主题只在启动时读取，切换系统主题后需要重启司命
+- `actions` 快捷操作是后续版本的功能，当前不展示
+- MCP 仅支持本机 stdio，不支持远程连接
+
+## 开发
+
+源码构建、测试和发布见 [docs/development.md](docs/development.md)。

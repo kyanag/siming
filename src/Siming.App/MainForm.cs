@@ -57,7 +57,7 @@ public sealed class MainForm : Form
         _supervisor = supervisor;
 
         Icon = AppIcon.Shared;
-        Text = "司命";
+        Text = "司命 · 进程管理器";
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1000, 560);
         MinimumSize = new Size(760, 420);

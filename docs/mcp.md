@@ -105,12 +105,12 @@ OpenCode 的 `mcp add` 会把 `--mcp` 误当成它自己的参数，直接编辑
 
 ## 使用示例
 
-- 「把 `D:\models\run_qwen_4b_server.ps1` 加到司命，cwd 用 `D:\models`」
-  → `siming_add_entry(name="Qwen 4B Server", cwd="D:\\models", command="& 'D:\\models\\run_qwen_4b_server.ps1'", shell="powershell")`
-- 「启动 Qwen 4B Server」
-  → `siming_start_entry(key="Qwen 4B Server")`
+- 「把 `D:\projects\demo\run_server.ps1` 加到司命，cwd 用 `D:\projects\demo`」
+  → `siming_add_entry(name="Demo Server", cwd="D:\\projects\\demo", command="& 'D:\\projects\\demo\\run_server.ps1'", shell="powershell")`
+- 「启动 Demo Server」
+  → `siming_start_entry(key="Demo Server")`
 - 「它起来了吗？把最近 50 行日志给我」
-  → `siming_get_logs(key="Qwen 4B Server", lines=50)`
+  → `siming_get_logs(key="Demo Server", lines=50)`
 - 「改一下端口到 8081，然后重启」
   → `siming_update_entry(...)` + `siming_restart_entry(...)`
 
@@ -127,6 +127,7 @@ powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 - 控制接口只绑定 `127.0.0.1`，不会暴露到局域网。
 - 每次主程序启动会确保存在 `mcp.token`（32 字节随机数），MCP 模式用它鉴权。
 - 令牌文件对同用户进程可读，因此只适合本机个人使用；不要把端口或令牌转发给其他机器。
+- 发布或分享程序目录时，不要把 `mcp.token` 一起带出去；目标机器首次启动会生成新令牌。
 
 ## 排错
 

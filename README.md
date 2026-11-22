@@ -177,7 +177,7 @@ D:\tools\Siming\
 | Node / npm | `cmd` | `npm run dev` |
 | Python | `cmd` | `python app.py` |
 | .NET | `cmd` | `dotnet run` |
-| PowerShell 脚本 | `powershell` | `& 'D:\models\run_server.ps1'` |
+| PowerShell 脚本 | `powershell` | `& 'D:\scripts\run_server.ps1'` |
 | 直接运行 exe | `none` | `D:\tools\server\server.exe` |
 
 命令会整体交给对应的 shell 执行；路径里有空格时，记得用引号包起来。
@@ -228,6 +228,7 @@ Cursor、VS Code、OpenCode 等客户端的配置见 [docs/mcp.md](docs/mcp.md)�
 
 - 配置和程序放在同一目录，不写 `%APPDATA%`
 - 拷贝整个目录即可迁移
+- 分享程序目录时，不要带上 `mcp.token` 和 `processes.json`；首次启动会自动生成新令牌，配置按需重新添加
 - `mcp.token` 是本机控制接口的密钥，不要随目录公开分享
 
 ## 常见问题

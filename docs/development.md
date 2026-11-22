@@ -106,4 +106,4 @@ tests/Siming.Tests  xUnit
 
 ## 设计文档
 
-PRD 和 UI 设计稿在 `D:\projects\ideas\idea3\docs`。
+PRD 和 UI 设计稿在项目外部维护，不随源码发布。

@@ -15,8 +15,8 @@ TestResults/
 *.trx
 coverage/
 
-## Local config (portable mode keeps processes.json next to the exe)
-src/Siming.App/bin/**/processes.json
+## Local config and secrets (never commit)
+processes.json
 **/mcp.token
 
 ## OS

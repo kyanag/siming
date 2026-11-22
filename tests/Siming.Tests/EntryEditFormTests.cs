@@ -69,7 +69,7 @@ public sealed class EntryEditFormTests
                     Command = "echo old",
                     Shell = "cmd",
                     Encoding = "utf-8",
-                    AutoStart = false,
+                    AutoStart = true,
                     Actions =
                     [
                         new ActionConfig { Label = "跑测试", Type = "command", Command = "npm test" },
@@ -108,6 +108,9 @@ public sealed class EntryEditFormTests
         Assert.Equal("跑测试", result.Actions![0].Label);
         Assert.NotNull(result.Extra);
         Assert.Equal("keep-me", result.Extra!["custom"].GetString());
+
+        // 「随司命启动」只在托盘菜单里切换，编辑对话框必须原样保留。
+        Assert.True(result.AutoStart);
     }
 
     [Fact]

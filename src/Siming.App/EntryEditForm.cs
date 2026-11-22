@@ -12,7 +12,6 @@ public sealed class EntryEditForm : Form
     private readonly ComboBox _shellBox;
     private readonly ComboBox _encodingBox;
     private readonly DataGridView _envGrid;
-    private readonly CheckBox _autoStartBox;
     private readonly Label _errorLabel;
     private readonly Button _saveButton;
 
@@ -30,14 +29,14 @@ public sealed class EntryEditForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(580, 560);
+        ClientSize = new Size(580, 528);
 
         var table = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(14, 12, 14, 10),
             ColumnCount = 2,
-            RowCount = 9,
+            RowCount = 8,
         };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -48,7 +47,6 @@ public sealed class EntryEditForm : Form
         }
 
         table.RowStyles.Add(new RowStyle(SizeType.Absolute, 150));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         table.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         table.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
 
@@ -130,14 +128,6 @@ public sealed class EntryEditForm : Form
             }
         }
 
-        _autoStartBox = new CheckBox
-        {
-            Text = "随司命启动",
-            Checked = _source.AutoStart,
-            AutoSize = true,
-            Margin = new Padding(0, 8, 0, 0),
-        };
-
         _errorLabel = new Label
         {
             Dock = DockStyle.Fill,
@@ -185,10 +175,9 @@ public sealed class EntryEditForm : Form
         table.Controls.Add(_encodingBox, 1, 4);
         table.Controls.Add(FieldLabel("环境变量"), 0, 5);
         table.Controls.Add(_envGrid, 1, 5);
-        table.Controls.Add(_autoStartBox, 1, 6);
-        table.Controls.Add(_errorLabel, 0, 7);
+        table.Controls.Add(_errorLabel, 0, 6);
         table.SetColumnSpan(_errorLabel, 2);
-        table.Controls.Add(buttons, 0, 8);
+        table.Controls.Add(buttons, 0, 7);
         table.SetColumnSpan(buttons, 2);
 
         Controls.Add(table);
@@ -260,7 +249,8 @@ public sealed class EntryEditForm : Form
             Shell = (string)(_shellBox.SelectedItem ?? "cmd"),
             Encoding = (string)(_encodingBox.SelectedItem ?? "utf-8"),
             Env = BuildEnvironment(),
-            AutoStart = _autoStartBox.Checked,
+            // 随司命启动现在只在托盘菜单里切换，编辑对话框原样保留。
+            AutoStart = _source.AutoStart,
             Actions = _source.Actions,
             Extract = _source.Extract,
             Extra = _source.Extra,

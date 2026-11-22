@@ -1281,7 +1281,46 @@ public sealed class MainForm : Form
         }
     }
 
-    /// <summary>执行「其他 ▸」里的快捷动作；失败只出气泡，不改条目状态。</summary>
+    /// <summary>条目级「随司命启动」：勾选即写回配置，失败回滚。</summary>
+    private ToolStripMenuItem BuildAutoStartItem(EntryRuntime entry)
+    {
+        var item = new ToolStripMenuItem("随司命启动")
+        {
+            Checked = entry.Config.AutoStart,
+            // 自己管勾选状态：保存失败要能回滚。
+            CheckOnClick = false,
+        };
+
+        item.Click += (_, _) => SetAutoStart(entry, item, !entry.Config.AutoStart);
+        return item;
+    }
+
+    private void SetAutoStart(EntryRuntime entry, ToolStripMenuItem item, bool enabled)
+    {
+        var config = entry.Config;
+        var previous = config.AutoStart;
+        if (previous == enabled)
+        {
+            item.Checked = enabled;
+            return;
+        }
+
+        config.AutoStart = enabled;
+        if (_store.TrySave(_store.Current, out var error))
+        {
+            item.Checked = enabled;
+            SetStatus(enabled
+                ? $"「{config.Name}」将在司命启动时自动拉起"
+                : $"「{config.Name}」不再自动拉起");
+            return;
+        }
+
+        config.AutoStart = previous;
+        item.Checked = previous;
+        SetStatus($"保存配置失败：{error}", error: true);
+    }
+
+    /// <summary>执行条目子菜单里的快捷动作；失败只出气泡，不改条目状态。</summary>
     private void RunAction(EntryRuntime entry, ActionKind kind, ActionConfig action, string payload)
     {
         try
@@ -1377,6 +1416,7 @@ public sealed class MainForm : Form
             parent.DropDownItems.Add(MenuItem("查看日志", () => OpenLog(entry)));
             parent.DropDownItems.Add(MenuItem("打开工作目录", () => OpenDirectory(entry)));
             parent.DropDownItems.Add(MenuItem("复制命令", () => CopyCommand(entry)));
+            parent.DropDownItems.Add(BuildAutoStartItem(entry));
 
             var actionItems = TrayActionMenu.Build(entry, RunAction);
             if (actionItems.Count > 0)

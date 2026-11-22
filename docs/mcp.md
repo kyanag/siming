@@ -120,7 +120,7 @@ OpenCode 的 `mcp add` 会把 `--mcp` 误当成它自己的参数，直接编辑
 powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 ```
 
-默认输出自包含的 `Siming.exe`（约 51 MB），目标机器不需要安装 .NET。加 `-Thin` 输出框架依赖版本（约 4 MB），目标机器需要 .NET 10 Desktop Runtime。
+默认输出框架依赖的 `Siming.exe`（约 4 MB，目标机器需要 .NET 10 Desktop Runtime，内存占用低）。用 `-SelfContained` 输出自包含版本（约 51 MB，目标机器无需安装 .NET，压缩单文件的内存占用较高）。
 
 ## 安全
 

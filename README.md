@@ -47,16 +47,18 @@ powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 
 默认发布到 `D:\tools\Siming`，产出：
 
-- `Siming.exe`：托盘主程序 + stdio MCP 模式（`Siming.exe --mcp`），单文件自包含，约 51 MB
+- `Siming.exe`：托盘主程序 + stdio MCP 模式（`Siming.exe --mcp`），框架依赖单文件，约 4 MB
 - `processes.json`：目标目录不存在时从开发配置或示例播种
 
-目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命。如果 AI 客户端正通过 `--mcp` 使用司命，也要先重启该客户端，否则 exe 被占用。可以用 `-Target` 指定其他目录。
+默认版本内存占用低（每个进程约 10–20 MB），但目标机器需要 .NET 10 Desktop Runtime。发布前需要先退出正在运行的司命；如果 AI 客户端正通过 `--mcp` 使用司命，也要先重启该客户端，否则 exe 被占用。可以用 `-Target` 指定其他目录。
 
-加 `-Thin` 可发布框架依赖版本（约 4 MB），目标机器需要安装 .NET 10 Desktop Runtime：
+需要拷贝到没装 .NET 的机器时，用 `-SelfContained` 输出自包含单文件（约 51 MB，压缩版，每个进程私有内存约 50–70 MB）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Thin
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -SelfContained
 ```
+
+`-Thin` 仍可用，等同于默认的框架依赖版本。
 
 MCP 客户端配置见 [docs/mcp.md](docs/mcp.md)。
 

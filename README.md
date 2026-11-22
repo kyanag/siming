@@ -31,6 +31,14 @@ dotnet run --project src/Siming.App
 & .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --tray
 ```
 
+## 发布
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
+```
+
+默认发布到 `D:\tools\Siming`，产出单文件自包含 exe（约 50 MB）+ `processes.json`。目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命。可以用 `-Target` 指定其他目录。
+
 要求 .NET 10 SDK（项目目标 `net10.0-windows`）。
 
 ## 配置

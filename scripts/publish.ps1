@@ -1,0 +1,38 @@
+param(
+    [string]$Target = 'D:\tools\Siming'
+)
+
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+$project = Join-Path $root 'src\Siming.App\Siming.App.csproj'
+
+if (Get-Process Siming -ErrorAction SilentlyContinue) {
+    throw 'Siming is running. Exit it before publishing.'
+}
+
+dotnet publish $project `
+    -c Release `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:EnableCompressionInSingleFile=true `
+    -p:DebugType=none `
+    -o $Target
+
+$config = Join-Path $Target 'processes.json'
+if (-not (Test-Path $config)) {
+    $debugConfig = Join-Path $root 'src\Siming.App\bin\Debug\net10.0-windows\processes.json'
+    $sample = Join-Path $root 'processes.sample.json'
+
+    if (Test-Path $debugConfig) {
+        Copy-Item $debugConfig $config
+        Write-Host "Seeded config from Debug build: $config"
+    }
+    elseif (Test-Path $sample) {
+        Copy-Item $sample $config
+        Write-Host "Seeded config from sample: $config"
+    }
+}
+
+Write-Host "Published to $Target"

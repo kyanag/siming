@@ -18,7 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Siming.Core\Siming.Core.csproj" />
     <ProjectReference Include="..\..\src\Siming.App\Siming.App.csproj" />
-    <ProjectReference Include="..\..\src\Siming.Mcp\Siming.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

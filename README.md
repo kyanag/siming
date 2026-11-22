@@ -2,7 +2,7 @@
 
 Windows 托盘进程开关面板。给一条 `cwd + 命令`，在托盘里启动、停止、重启，并把整棵进程树停干净。
 
-> 当前状态：M3 完成（v1 功能齐备）。
+> 当前状态：v1.1 完成（M1–M4）。
 
 ## 已实现
 
@@ -15,7 +15,7 @@ Windows 托盘进程开关面板。给一条 `cwd + 命令`，在托盘里启动
 - 退出三选一：结束所有 / 保留进程 / 取消；异常退出由 kill-on-close 兜底
 - 单实例；重复启动会唤起已有窗口
 - 开机自启开关（托盘菜单与主窗口工具条），写入 `HKCU\...\Run`，登录后以 `--tray` 静默启动
-- **MCP 接入**：`Siming.Mcp.exe` 提供 stdio MCP 服务，AI 可直接列出 / 新增 / 修改 / 删除 / 启停条目并读日志，详见 [docs/mcp.md](docs/mcp.md)
+- **MCP 接入**：同一份 `Siming.exe` 带 `--mcp` 模式，可作为 stdio MCP 服务；AI 可直接列出 / 新增 / 修改 / 删除 / 启停条目并读日志，详见 [docs/mcp.md](docs/mcp.md)
 
 ## 构建与运行
 
@@ -32,6 +32,12 @@ dotnet run --project src/Siming.App
 & .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --tray
 ```
 
+以 stdio MCP 服务运行（供 AI 客户端调用）：
+
+```powershell
+& .\src\Siming.App\bin\Debug\net10.0-windows\Siming.exe --mcp
+```
+
 ## 发布
 
 ```powershell
@@ -40,11 +46,16 @@ powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 
 默认发布到 `D:\tools\Siming`，产出：
 
-- `Siming.exe`：托盘主程序（单文件自包含，约 49 MB）
-- `Siming.Mcp.exe`：stdio MCP 服务（约 37 MB）
+- `Siming.exe`：托盘主程序 + stdio MCP 模式（`Siming.exe --mcp`），单文件自包含，约 51 MB
 - `processes.json`：目标目录不存在时从开发配置或示例播种
 
-目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命和 MCP 服务。可以用 `-Target` 指定其他目录。
+目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命。如果 AI 客户端正通过 `--mcp` 使用司命，也要先重启该客户端，否则 exe 被占用。可以用 `-Target` 指定其他目录。
+
+加 `-Thin` 可发布框架依赖版本（约 4 MB），目标机器需要安装 .NET 10 Desktop Runtime：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\publish.ps1 -Thin
+```
 
 MCP 客户端配置见 [docs/mcp.md](docs/mcp.md)。
 

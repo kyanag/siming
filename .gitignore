@@ -17,7 +17,6 @@ coverage/
 
 ## Local config (portable mode keeps processes.json next to the exe)
 src/Siming.App/bin/**/processes.json
-src/Siming.Mcp/bin/**/processes.json
 **/mcp.token
 
 ## OS

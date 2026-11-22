@@ -1,5 +1,5 @@
+using Siming.App.Mcp;
 using Siming.Core.Control;
-using Siming.Mcp;
 
 namespace Siming.Tests;
 

@@ -2,7 +2,6 @@
   <Folder Name="/src/">
     <Project Path="src/Siming.App/Siming.App.csproj" />
     <Project Path="src/Siming.Core/Siming.Core.csproj" />
-    <Project Path="src/Siming.Mcp/Siming.Mcp.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Siming.Tests/Siming.Tests.csproj" />

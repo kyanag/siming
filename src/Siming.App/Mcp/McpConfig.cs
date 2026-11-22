@@ -2,7 +2,7 @@ using ModelContextProtocol;
 using Siming.Core.Configuration;
 using Siming.Core.Control;
 
-namespace Siming.Mcp;
+namespace Siming.App.Mcp;
 
 /// <summary>
 /// 主程序没运行时的降级路径：直接读写 processes.json。

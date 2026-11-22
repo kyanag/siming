@@ -1,13 +1,12 @@
+using Siming.App.Mcp;
 using Siming.Core.Configuration;
+using Siming.Core.Platform;
 using Siming.Core.Processes;
 
 namespace Siming.App;
 
 internal static class Program
 {
-    private const string MutexName = @"Local\Siming.SingleInstance";
-    private const string ShowEventName = @"Local\Siming.ShowWindow";
-
     [STAThread]
     private static void Main(string[] args)
     {
@@ -17,12 +16,18 @@ internal static class Program
             return;
         }
 
-        using var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
+        if (args.Any(argument => string.Equals(argument, "--mcp", StringComparison.OrdinalIgnoreCase)))
+        {
+            Environment.ExitCode = McpServerHost.RunAsync().GetAwaiter().GetResult();
+            return;
+        }
+
+        using var mutex = new Mutex(initiallyOwned: true, SingleInstanceNames.MutexName, out var createdNew);
         if (!createdNew)
         {
             try
             {
-                using var signalEvent = EventWaitHandle.OpenExisting(ShowEventName);
+                using var signalEvent = EventWaitHandle.OpenExisting(SingleInstanceNames.ShowEventName);
                 signalEvent.Set();
             }
             catch (Exception)
@@ -76,7 +81,7 @@ internal static class Program
 
         form.BeginAutoStart();
 
-        using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SingleInstanceNames.ShowEventName);
         var listener = new Thread(() =>
         {
             while (!form.IsDisposed)

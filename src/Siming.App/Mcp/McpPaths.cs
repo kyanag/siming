@@ -1,6 +1,6 @@
 using Siming.Core.Platform;
 
-namespace Siming.Mcp;
+namespace Siming.App.Mcp;
 
 public sealed class McpPaths(string baseDirectory)
 {

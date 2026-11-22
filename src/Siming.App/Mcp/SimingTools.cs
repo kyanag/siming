@@ -1,11 +1,11 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Siming.Core.Control;
+using Siming.Core.Platform;
 
-namespace Siming.Mcp;
+namespace Siming.App.Mcp;
 
 [McpServerToolType]
 public static class SimingTools
@@ -27,10 +27,9 @@ public static class SimingTools
         }
         catch (ControlUnavailableException)
         {
-            var appRunning = Process.GetProcessesByName("Siming").Length > 0;
             return Pretty(new
             {
-                appRunning,
+                appRunning = IsMainAppRunning(),
                 controlConnected = false,
                 entries = config.ListStatuses(),
                 note = "控制接口不可用，只能读取配置；start/stop 等控制操作会尝试拉起司命。",
@@ -219,4 +218,25 @@ public static class SimingTools
 
     private static string Pretty(object value) =>
         JsonSerializer.Serialize(value, ControlProtocol.PrettyJsonOptions);
+
+    /// <summary>
+    /// MCP 模式本身也是 Siming.exe，不能用进程名判断主程序是否在跑；
+    /// 托盘主程序会持有单实例 Mutex。
+    /// </summary>
+    private static bool IsMainAppRunning()
+    {
+        try
+        {
+            if (Mutex.TryOpenExisting(SingleInstanceNames.MutexName, out var mutex))
+            {
+                mutex.Dispose();
+                return true;
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return false;
+    }
 }

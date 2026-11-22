@@ -6,7 +6,7 @@ using System.Text.Json;
 using ModelContextProtocol;
 using Siming.Core.Control;
 
-namespace Siming.Mcp;
+namespace Siming.App.Mcp;
 
 public sealed class ControlUnavailableException(string message) : Exception(message);
 

@@ -23,6 +23,11 @@ public sealed class MainForm : Form
     private readonly ToolStripButton _stopButton;
     private readonly ToolStripButton _restartButton;
     private readonly ToolStripButton _logButton;
+    private readonly ToolStripButton _addButton;
+    private readonly ToolStripButton _editButton;
+    private readonly ToolStripButton _deleteButton;
+    private readonly ToolStripButton _upButton;
+    private readonly ToolStripButton _downButton;
     private readonly ToolStripButton _startupButton;
     private readonly StatusStrip _statusBar;
     private readonly ToolStripStatusLabel _countLabel;
@@ -90,6 +95,11 @@ public sealed class MainForm : Form
         _restartButton = ToolbarButton("重启", () => _ = RestartSelectedAsync());
         var logButton = ToolbarButton("日志", () => { if (Selected is { } entry) OpenLog(entry); });
         _logButton = logButton;
+        _addButton = ToolbarButton("新增", AddEntry);
+        _editButton = ToolbarButton("编辑", () => _ = EditSelectedAsync());
+        _deleteButton = ToolbarButton("删除", () => _ = DeleteSelectedAsync());
+        _upButton = ToolbarButton("↑", () => MoveSelected(-1));
+        _downButton = ToolbarButton("↓", () => MoveSelected(1));
         var reloadButton = ToolbarButton("重载配置", () => _store.Reload());
         var openConfigButton = ToolbarButton("打开配置", OpenConfigFile);
 
@@ -120,6 +130,12 @@ public sealed class MainForm : Form
             _stopButton,
             _restartButton,
             _logButton,
+            new ToolStripSeparator(),
+            _addButton,
+            _editButton,
+            _deleteButton,
+            _upButton,
+            _downButton,
             new ToolStripSeparator(),
             reloadButton,
             openConfigButton,
@@ -418,10 +434,18 @@ public sealed class MainForm : Form
     private void UpdateButtons()
     {
         var entry = Selected;
+        var index = _list.SelectedIndices.Count > 0 ? _list.SelectedIndices[0] : -1;
+        var editable = entry is not null && !entry.IsOrphan;
+
         _startButton.Enabled = entry?.State == EntryState.Stopped;
         _stopButton.Enabled = entry?.State is EntryState.Running or EntryState.Starting;
         _restartButton.Enabled = entry?.State == EntryState.Running;
         _logButton.Enabled = entry is not null;
+        _addButton.Enabled = true;
+        _editButton.Enabled = editable;
+        _deleteButton.Enabled = editable;
+        _upButton.Enabled = editable && index > 0;
+        _downButton.Enabled = editable && index >= 0 && index < _list.Items.Count - 1;
     }
 
     private void UpdateCounts()
@@ -553,9 +577,246 @@ public sealed class MainForm : Form
         }
     }
 
-    private async Task StartEntryAsync(EntryRuntime entry)
+    private void AddEntry()
     {
-        await _supervisor.StartAsync(entry);
+        using var dialog = new EntryEditForm(
+            source: null,
+            otherNames: _store.Current.Entries.Select(entry => entry.Name));
+
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Result is null)
+        {
+            return;
+        }
+
+        var entry = dialog.Result;
+        _store.Current.Entries.Add(entry);
+
+        if (!_store.TrySave(_store.Current, out var error))
+        {
+            _store.Current.Entries.Remove(entry);
+            SetStatus($"保存失败：{error}", error: true);
+            return;
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        SelectByKey(entry.Key);
+        SetStatus($"已新增「{entry.Name}」");
+    }
+
+    private async Task EditSelectedAsync()
+    {
+        var runtime = Selected;
+        if (runtime is null || runtime.IsOrphan)
+        {
+            return;
+        }
+
+        var entries = _store.Current.Entries;
+        var index = FindConfigIndex(runtime);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var old = entries[index];
+        var otherNames = entries
+            .Where((_, entryIndex) => entryIndex != index)
+            .Select(entry => entry.Name);
+
+        using var dialog = new EntryEditForm(old, otherNames);
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Result is null)
+        {
+            return;
+        }
+
+        var updated = dialog.Result;
+        var needsRestart = runtime.State != EntryState.Stopped && NeedsRestart(old, updated);
+
+        entries[index] = updated;
+        if (!_store.TrySave(_store.Current, out var error))
+        {
+            entries[index] = old;
+            SetStatus($"保存失败：{error}", error: true);
+            return;
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        SelectByKey(updated.Key);
+
+        if (needsRestart)
+        {
+            var choice = MessageBox.Show(
+                this,
+                "条目正在运行，新配置需要重启后生效。现在重启？",
+                "司命",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (choice == DialogResult.Yes)
+            {
+                await _supervisor.RestartAsync(runtime);
+            }
+        }
+
+        SetStatus($"已保存「{updated.Name}」");
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        var runtime = Selected;
+        if (runtime is null || runtime.IsOrphan)
+        {
+            return;
+        }
+
+        var entries = _store.Current.Entries;
+        var index = FindConfigIndex(runtime);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var running = runtime.State != EntryState.Stopped;
+        var message = running
+            ? $"「{runtime.Config.Name}」正在运行。停止并删除？"
+            : $"删除条目「{runtime.Config.Name}」？";
+
+        if (MessageBox.Show(
+                this,
+                message,
+                "删除条目",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        if (running)
+        {
+            await _supervisor.StopAsync(runtime);
+            if (runtime.State != EntryState.Stopped)
+            {
+                SetStatus("停止失败，未删除", error: true);
+                return;
+            }
+        }
+
+        var removed = entries[index];
+        entries.RemoveAt(index);
+
+        if (!_store.TrySave(_store.Current, out var error))
+        {
+            entries.Insert(index, removed);
+            SetStatus($"保存失败：{error}", error: true);
+            return;
+        }
+
+        if (_logForms.TryGetValue(removed.Key, out var logForm) && !logForm.IsDisposed)
+        {
+            logForm.Close();
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        SetStatus($"已删除「{removed.Name}」");
+    }
+
+    private void MoveSelected(int delta)
+    {
+        var runtime = Selected;
+        if (runtime is null || runtime.IsOrphan)
+        {
+            return;
+        }
+
+        var entries = _store.Current.Entries;
+        var index = FindConfigIndex(runtime);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= entries.Count)
+        {
+            return;
+        }
+
+        (entries[index], entries[target]) = (entries[target], entries[index]);
+
+        if (!_store.TrySave(_store.Current, out var error))
+        {
+            (entries[index], entries[target]) = (entries[target], entries[index]);
+            SetStatus($"保存失败：{error}", error: true);
+            return;
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        SelectByKey(runtime.Config.Key);
+        SetStatus("顺序已保存");
+    }
+
+    private int FindConfigIndex(EntryRuntime runtime)
+    {
+        var entries = _store.Current.Entries;
+        for (var index = 0; index < entries.Count; index++)
+        {
+            if (string.Equals(entries[index].Key, runtime.Config.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool NeedsRestart(EntryConfig before, EntryConfig after)
+    {
+        return !string.Equals(before.Command, after.Command, StringComparison.Ordinal)
+            || !string.Equals(before.Cwd, after.Cwd, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(before.Shell, after.Shell, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(before.Encoding, after.Encoding, StringComparison.OrdinalIgnoreCase)
+            || !EnvironmentEquals(before.Env, after.Env);
+    }
+
+    private static bool EnvironmentEquals(
+        IReadOnlyDictionary<string, string?>? left,
+        IReadOnlyDictionary<string, string?>? right)
+    {
+        var leftCount = left?.Count ?? 0;
+        var rightCount = right?.Count ?? 0;
+        if (leftCount != rightCount)
+        {
+            return false;
+        }
+
+        if (left is null || right is null)
+        {
+            return true;
+        }
+
+        foreach (var pair in left)
+        {
+            var found = false;
+            foreach (var other in right)
+            {
+                if (string.Equals(pair.Key, other.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.Equals(pair.Value, other.Value, StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task StartEntryAsync(EntryRuntime entry)
+    {        await _supervisor.StartAsync(entry);
         if (entry.LastError is { } error)
         {
             SetStatus($"「{entry.Config.Name}」启动失败：{error}", error: true);
@@ -815,6 +1076,36 @@ public sealed class MainForm : Form
             {
                 OpenLog(entry);
             }
+        }
+        else if (e.Control && e.KeyCode == Keys.N)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            AddEntry();
+        }
+        else if (e.KeyCode is Keys.Enter or Keys.F2)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            _ = EditSelectedAsync();
+        }
+        else if (e.KeyCode == Keys.Delete)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            _ = DeleteSelectedAsync();
+        }
+        else if (e.Control && e.KeyCode == Keys.Up)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            MoveSelected(-1);
+        }
+        else if (e.Control && e.KeyCode == Keys.Down)
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            MoveSelected(1);
         }
         else if (e.KeyCode == Keys.Escape)
         {

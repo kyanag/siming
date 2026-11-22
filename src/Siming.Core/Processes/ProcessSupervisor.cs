@@ -324,10 +324,44 @@ public sealed class ProcessSupervisor : IDisposable
         entry.State = EntryState.Stopping;
         RaiseState(entry);
 
-        ConsoleInterrupt.TrySendCtrlBreak(launched.Pid);
+        var deadline = DateTime.UtcNow + _gracefulTimeout;
+        var sent = 0;
+        var exited = false;
 
-        var completed = await Task.WhenAny(signal.Task, Task.Delay(_gracefulTimeout)).ConfigureAwait(false);
-        if (!ReferenceEquals(completed, signal.Task))
+        // 子进程刚创建时可能还没装好控制台处理函数，第一次 Ctrl+C 会丢；
+        // 在优雅窗口内最多补发三次，间隔 500ms，之后安静等待到超时。
+        while (sent < 3 && DateTime.UtcNow < deadline)
+        {
+            sent++;
+            ConsoleInterrupt.TrySendCtrlBreak(launched.Pid);
+
+            var slice = deadline - DateTime.UtcNow;
+            if (slice <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            if (slice > TimeSpan.FromMilliseconds(500))
+            {
+                slice = TimeSpan.FromMilliseconds(500);
+            }
+
+            var completed = await Task.WhenAny(signal.Task, Task.Delay(slice)).ConfigureAwait(false);
+            if (ReferenceEquals(completed, signal.Task))
+            {
+                exited = true;
+                break;
+            }
+        }
+
+        if (!exited && DateTime.UtcNow < deadline)
+        {
+            var completed = await Task.WhenAny(signal.Task, Task.Delay(deadline - DateTime.UtcNow))
+                .ConfigureAwait(false);
+            exited = ReferenceEquals(completed, signal.Task);
+        }
+
+        if (!exited)
         {
             try
             {

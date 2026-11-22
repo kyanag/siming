@@ -56,9 +56,10 @@ internal static class Program
                 MessageBoxIcon.Warning);
         }
 
+        EnsureEntryIds(store);
+
         using var supervisor = new ProcessSupervisor(store.Current);
         using var form = new MainForm(store, supervisor);
-
         var startHidden = args.Any(argument =>
             string.Equals(argument, "--tray", StringComparison.OrdinalIgnoreCase));
 
@@ -115,6 +116,25 @@ internal static class Program
         }
         catch (Exception)
         {
+        }
+    }
+
+    /// <summary>给缺少 id 的条目补一个稳定 id，改名时运行时身份不会变。</summary>
+    private static void EnsureEntryIds(ConfigStore store)
+    {
+        var changed = false;
+        foreach (var entry in store.Current.Entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Id))
+            {
+                entry.Id = Guid.NewGuid().ToString("N");
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            store.TrySave(store.Current, out _);
         }
     }
 }

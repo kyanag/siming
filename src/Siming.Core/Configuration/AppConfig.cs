@@ -28,6 +28,7 @@ public sealed class AppSettings
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 
+    [JsonIgnore]
     public int EffectiveLogLines => Math.Clamp(LogLines, 100, 5000);
 }
 

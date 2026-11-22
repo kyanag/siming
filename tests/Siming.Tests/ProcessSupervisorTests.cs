@@ -102,6 +102,68 @@ public sealed class ProcessSupervisorTests : IDisposable
         Assert.Contains(entry.Log.Snapshot(), line => line.Contains("启动失败"));
     }
 
+    [Fact]
+    public async Task ApplyConfig_WithStableId_KeepsRunningRuntime_OnRename()
+    {
+        var config = new AppConfig
+        {
+            Entries =
+            [
+                new EntryConfig
+                {
+                    Id = "stable",
+                    Name = "old",
+                    Cwd = _directory,
+                    Command = "ping -t 127.0.0.1",
+                    Shell = "cmd",
+                },
+            ],
+        };
+
+        using var supervisor = new ProcessSupervisor(
+            config,
+            gracefulStopTimeout: TimeSpan.FromMilliseconds(400),
+            forceStopTimeout: TimeSpan.FromSeconds(2));
+
+        var entry = supervisor.Snapshot()[0];
+        await supervisor.StartAsync(entry);
+        var pid = entry.Pid;
+        Assert.NotNull(pid);
+
+        config.Entries[0].Name = "new";
+        supervisor.ApplyConfig(config);
+
+        var snapshot = supervisor.Snapshot();
+        Assert.Single(snapshot);
+        Assert.Same(entry, snapshot[0]);
+        Assert.Equal("new", entry.Config.Name);
+        Assert.Equal(EntryState.Running, entry.State);
+        Assert.Equal(pid, entry.Pid);
+
+        await supervisor.StopAsync(entry);
+    }
+
+    [Fact]
+    public void ApplyConfig_Reorders_Entries_ByConfigOrder()
+    {
+        var config = new AppConfig
+        {
+            Entries =
+            [
+                new EntryConfig { Id = "a", Name = "A", Cwd = _directory, Command = "echo 1" },
+                new EntryConfig { Id = "b", Name = "B", Cwd = _directory, Command = "echo 2" },
+            ],
+        };
+
+        using var supervisor = new ProcessSupervisor(config);
+        Assert.Equal(["a", "b"], supervisor.Snapshot().Select(entry => entry.Config.Key));
+
+        config.Entries.Reverse();
+        supervisor.ApplyConfig(config);
+
+        Assert.Equal(["b", "a"], supervisor.Snapshot().Select(entry => entry.Config.Key));
+    }
+
     private ProcessSupervisor CreateSupervisor(string command) => new(
         new AppConfig
         {

@@ -106,6 +106,33 @@ public sealed class ConfigStoreTests : IDisposable
         Assert.Equal("good", store.Current.Entries[0].Name);
     }
 
+    [Fact]
+    public void Save_DoesNotWriteComputedProperties_AndKeepsNullEnvValues()
+    {
+        var path = Path.Combine(_directory, "processes.json");
+        using var store = new ConfigStore(path);
+        store.Load();
+
+        store.Current.Entries.Add(new EntryConfig
+        {
+            Name = "env",
+            Cwd = _directory,
+            Command = "echo 1",
+            Env = new Dictionary<string, string?>
+            {
+                ["KEEP"] = "1",
+                ["REMOVE"] = null,
+            },
+        });
+
+        Assert.True(store.TrySave(store.Current, out var error), error);
+        var json = File.ReadAllText(path);
+
+        Assert.DoesNotContain("effectiveLogLines", json);
+        Assert.DoesNotContain("shellKind", json);
+        Assert.Contains("\"REMOVE\": null", json);
+    }
+
     public void Dispose()
     {
         try

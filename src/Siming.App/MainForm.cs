@@ -1251,12 +1251,14 @@ public sealed class MainForm : Form
 
     private void BuildTrayMenu()
     {
-        foreach (ToolStripItem item in _trayMenu.Items)
+        // 先复制再清理：Dispose 会把自己从 Items 里移除，
+        // 直接遍历会触发 “Collection was modified”。
+        var previousItems = _trayMenu.Items.Cast<ToolStripItem>().ToArray();
+        _trayMenu.Items.Clear();
+        foreach (var item in previousItems)
         {
             item.Dispose();
         }
-
-        _trayMenu.Items.Clear();
 
         var entries = _supervisor.Snapshot();
         foreach (var entry in entries)

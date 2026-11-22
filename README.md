@@ -15,6 +15,7 @@ Windows 托盘进程开关面板。给一条 `cwd + 命令`，在托盘里启动
 - 退出三选一：结束所有 / 保留进程 / 取消；异常退出由 kill-on-close 兜底
 - 单实例；重复启动会唤起已有窗口
 - 开机自启开关（托盘菜单与主窗口工具条），写入 `HKCU\...\Run`，登录后以 `--tray` 静默启动
+- **MCP 接入**：`Siming.Mcp.exe` 提供 stdio MCP 服务，AI 可直接列出 / 新增 / 修改 / 删除 / 启停条目并读日志，详见 [docs/mcp.md](docs/mcp.md)
 
 ## 构建与运行
 
@@ -37,7 +38,15 @@ dotnet run --project src/Siming.App
 powershell -ExecutionPolicy Bypass -File scripts\publish.ps1
 ```
 
-默认发布到 `D:\tools\Siming`，产出单文件自包含 exe（约 50 MB）+ `processes.json`。目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命。可以用 `-Target` 指定其他目录。
+默认发布到 `D:\tools\Siming`，产出：
+
+- `Siming.exe`：托盘主程序（单文件自包含，约 49 MB）
+- `Siming.Mcp.exe`：stdio MCP 服务（约 37 MB）
+- `processes.json`：目标目录不存在时从开发配置或示例播种
+
+目标目录已有配置时不会覆盖；发布前需要先退出正在运行的司命和 MCP 服务。可以用 `-Target` 指定其他目录。
+
+MCP 客户端配置见 [docs/mcp.md](docs/mcp.md)。
 
 要求 .NET 10 SDK（项目目标 `net10.0-windows`）。
 

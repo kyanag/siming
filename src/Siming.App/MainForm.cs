@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Siming.Core.Configuration;
+using Siming.Core.Control;
 using Siming.Core.Platform;
 using Siming.Core.Processes;
 
@@ -41,6 +42,7 @@ public sealed class MainForm : Form
 
     private GeneratedIcon? _idleIcon;
     private GeneratedIcon? _runningIcon;
+    private ControlServer? _controlServer;
     private bool _exiting;
     private bool _hideHintShown;
     private bool _syncingStartup;
@@ -233,6 +235,8 @@ public sealed class MainForm : Form
             _ = Handle;
         }
 
+        StartControlServer();
+
         try
         {
             BeginInvoke(async () =>
@@ -244,6 +248,304 @@ public sealed class MainForm : Form
         catch (InvalidOperationException)
         {
         }
+    }
+
+    private void StartControlServer()
+    {
+        if (_controlServer is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            var token = McpToken.Ensure(_store.FilePath);
+            var server = new ControlServer(McpToken.ControlPort, token, HandleControlAsync);
+            if (!server.Start(out var error))
+            {
+                server.Dispose();
+                SetStatus($"MCP 控制接口启动失败：{error}", error: true);
+                return;
+            }
+
+            _controlServer = server;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"MCP 控制接口启动失败：{ex.Message}", error: true);
+        }
+    }
+
+    private async Task<object?> HandleControlAsync(ControlRequest request)
+    {
+        switch (request.Cmd.Trim().ToLowerInvariant())
+        {
+            case "ping":
+                return new
+                {
+                    app = "Siming",
+                    pid = Environment.ProcessId,
+                    version = typeof(MainForm).Assembly.GetName().Version?.ToString() ?? "0.1.0",
+                };
+
+            case "list":
+                return UiInvoke(() => new
+                {
+                    appRunning = true,
+                    controlConnected = true,
+                    entries = _supervisor.Snapshot().Select(ToStatus).ToArray(),
+                });
+
+            case "logs":
+                return UiInvoke(() => GetLogs(request.Key, request.Lines ?? 200));
+
+            case "add":
+                return UiInvoke(() => new
+                {
+                    entry = AddEntryFromControl(
+                        request.Entry ?? throw new InvalidOperationException("缺少 entry 参数")),
+                });
+
+            case "update":
+                if (string.IsNullOrWhiteSpace(request.Key))
+                {
+                    throw new InvalidOperationException("缺少 key 参数");
+                }
+
+                return UiInvoke(() => new
+                {
+                    entry = UpdateEntryFromControl(
+                        request.Key!,
+                        request.Entry ?? throw new InvalidOperationException("缺少 entry 参数")),
+                });
+
+            case "remove":
+                if (string.IsNullOrWhiteSpace(request.Key))
+                {
+                    throw new InvalidOperationException("缺少 key 参数");
+                }
+
+                return await RemoveFromControlAsync(request.Key!, request.Stop ?? true).ConfigureAwait(false);
+
+            case "start":
+            case "stop":
+            case "restart":
+                return await ControlEntryAsync(
+                    request.Cmd.Trim().ToLowerInvariant(),
+                    request.Key).ConfigureAwait(false);
+
+            default:
+                throw new InvalidOperationException($"未知命令：{request.Cmd}");
+        }
+    }
+
+    private async Task<object?> ControlEntryAsync(string command, string? key)
+    {
+        var runtime = FindRuntime(key) ?? throw new InvalidOperationException($"条目不存在：{key}");
+
+        switch (command)
+        {
+            case "start":
+                await _supervisor.StartAsync(runtime).ConfigureAwait(false);
+                break;
+            case "stop":
+                await _supervisor.StopAsync(runtime).ConfigureAwait(false);
+                break;
+            case "restart":
+                await _supervisor.RestartAsync(runtime).ConfigureAwait(false);
+                break;
+        }
+
+        var status = UiInvoke(() => ToStatus(runtime));
+        return new { entry = status, error = runtime.LastError };
+    }
+
+    private async Task<object?> RemoveFromControlAsync(string key, bool stop)
+    {
+        var runtime = FindRuntime(key);
+        if (runtime is null)
+        {
+            throw new InvalidOperationException($"条目不存在：{key}");
+        }
+
+        if (stop && runtime.State != EntryState.Stopped)
+        {
+            await _supervisor.StopAsync(runtime).ConfigureAwait(false);
+            if (runtime.State != EntryState.Stopped)
+            {
+                throw new InvalidOperationException("停止失败，未删除");
+            }
+        }
+
+        return UiInvoke(() => RemoveEntryFromControl(runtime.Config.Key));
+    }
+
+    private EntryStatus AddEntryFromControl(EntryInput input)
+    {
+        var entry = BuildEntry(input, existing: null);
+        var error = EntryValidator.ValidateForRun(entry);
+        if (error is not null)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        _store.Current.Entries.Add(entry);
+        if (!_store.TrySave(_store.Current, out var saveError))
+        {
+            _store.Current.Entries.Remove(entry);
+            throw new InvalidOperationException($"保存失败：{saveError}");
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        var runtime = FindRuntime(entry.Key)
+            ?? throw new InvalidOperationException("保存后找不到条目");
+        return ToStatus(runtime);
+    }
+
+    private EntryStatus UpdateEntryFromControl(string key, EntryInput input)
+    {
+        var entries = _store.Current.Entries;
+        var index = FindConfigIndexByKey(key);
+        if (index < 0)
+        {
+            throw new InvalidOperationException($"配置中找不到条目：{key}");
+        }
+
+        var existing = entries[index];
+        var updated = BuildEntry(input, existing);
+
+        var error = EntryValidator.ValidateForRun(updated);
+        if (error is not null)
+        {
+            throw new InvalidOperationException(error);
+        }
+
+        entries[index] = updated;
+        if (!_store.TrySave(_store.Current, out var saveError))
+        {
+            entries[index] = existing;
+            throw new InvalidOperationException($"保存失败：{saveError}");
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        var runtime = FindRuntime(updated.Key)
+            ?? throw new InvalidOperationException("保存后找不到条目");
+        return ToStatus(runtime);
+    }
+
+    private object RemoveEntryFromControl(string key)
+    {
+        var entries = _store.Current.Entries;
+        var index = FindConfigIndexByKey(key);
+        if (index < 0)
+        {
+            throw new InvalidOperationException($"配置中找不到条目：{key}");
+        }
+
+        var removed = entries[index];
+        entries.RemoveAt(index);
+
+        if (!_store.TrySave(_store.Current, out var error))
+        {
+            entries.Insert(index, removed);
+            throw new InvalidOperationException($"保存失败：{error}");
+        }
+
+        if (_logForms.TryGetValue(removed.Key, out var logForm) && !logForm.IsDisposed)
+        {
+            logForm.Close();
+        }
+
+        _supervisor.ApplyConfig(_store.Current);
+        return new { removed = true, id = removed.Id, name = removed.Name };
+    }
+
+    private static EntryConfig BuildEntry(EntryInput input, EntryConfig? existing)
+    {
+        return EntryInputMapper.Apply(input, existing);
+    }
+
+    private int FindConfigIndexByKey(string key)
+    {
+        var entries = _store.Current.Entries;
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            if (string.Equals(entry.Id, key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Name, key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private EntryRuntime? FindRuntime(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        return _supervisor.Snapshot().FirstOrDefault(runtime =>
+            string.Equals(runtime.Config.Id, key, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(runtime.Config.Name, key, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(runtime.Config.Key, key, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private object GetLogs(string? key, int lines)
+    {
+        var runtime = FindRuntime(key) ?? throw new InvalidOperationException($"条目不存在：{key}");
+        var count = Math.Clamp(lines, 1, 5000);
+        var snapshot = runtime.Log.Snapshot();
+
+        return new
+        {
+            id = runtime.Config.Id,
+            name = runtime.Config.Name,
+            state = runtime.State.ToString().ToLowerInvariant(),
+            total = runtime.Log.TotalLines,
+            dropped = runtime.Log.DroppedLines,
+            lines = snapshot.TakeLast(count).ToArray(),
+        };
+    }
+
+    private static EntryStatus ToStatus(EntryRuntime runtime)
+    {
+        var config = runtime.Config;
+        return new EntryStatus
+        {
+            Id = config.Id,
+            Name = config.Name,
+            Cwd = config.Cwd,
+            Command = config.Command,
+            Shell = config.Shell,
+            Encoding = config.Encoding,
+            Env = config.Env,
+            AutoStart = config.AutoStart,
+            State = runtime.State.ToString().ToLowerInvariant(),
+            Pid = runtime.Pid,
+            StartedAt = runtime.StartedAt,
+            UptimeSeconds = runtime.Uptime is { } uptime ? (long)uptime.TotalSeconds : null,
+            LastExitCode = runtime.LastExitCode,
+            LastExitedAt = runtime.LastExitedAt,
+            LastError = runtime.LastError,
+            IsOrphan = runtime.IsOrphan,
+            LogTotal = runtime.Log.TotalLines,
+            LogDropped = runtime.Log.DroppedLines,
+        };
+    }
+
+    private T UiInvoke<T>(Func<T> func)
+    {
+        if (IsDisposed || Disposing)
+        {
+            throw new InvalidOperationException("司命正在退出");
+        }
+
+        return InvokeRequired ? (T)Invoke(func) : func();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -278,6 +580,8 @@ public sealed class MainForm : Form
         _tray.Visible = false;
         _tray.Dispose();
         _trayMenu.Dispose();
+        _controlServer?.Dispose();
+        _controlServer = null;
         _idleIcon?.Dispose();
         _runningIcon?.Dispose();
         _statusImages.Dispose();

@@ -4,21 +4,25 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $root 'src\Siming.App\Siming.App.csproj'
+$appProject = Join-Path $root 'src\Siming.App\Siming.App.csproj'
+$mcpProject = Join-Path $root 'src\Siming.Mcp\Siming.Mcp.csproj'
 
-if (Get-Process Siming -ErrorAction SilentlyContinue) {
-    throw 'Siming is running. Exit it before publishing.'
+if (Get-Process -Name 'Siming', 'Siming.Mcp' -ErrorAction SilentlyContinue) {
+    throw 'Siming or Siming.Mcp is running. Exit both before publishing.'
 }
 
-dotnet publish $project `
-    -c Release `
-    -r win-x64 `
-    --self-contained true `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:EnableCompressionInSingleFile=true `
-    -p:DebugType=none `
-    -o $Target
+$publishArgs = @(
+    '-c', 'Release',
+    '-r', 'win-x64',
+    '--self-contained', 'true',
+    '-p:PublishSingleFile=true',
+    '-p:IncludeNativeLibrariesForSelfExtract=true',
+    '-p:EnableCompressionInSingleFile=true',
+    '-p:DebugType=none'
+)
+
+dotnet publish $appProject @publishArgs -o $Target
+dotnet publish $mcpProject @publishArgs -o $Target
 
 $config = Join-Path $Target 'processes.json'
 if (-not (Test-Path $config)) {

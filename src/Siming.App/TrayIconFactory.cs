@@ -51,30 +51,47 @@ internal static class TrayIconFactory
             ? (light ? Color.FromArgb(16, 70, 30) : Color.White)
             : (light ? Color.White : Color.Black);
 
-        using var bitmap = new Bitmap(size, size);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-        graphics.Clear(Color.Transparent);
+        // 先按 4 倍尺寸绘制再缩小：GDI+ 在 16px 画布上直接画汉字时，
+        // 行高略大于画布会导致整字被裁掉（图标全透明）。
+        const int supersample = 4;
+        var canvas = size * supersample;
 
-        using var font = new Font("Microsoft YaHei UI", size * 0.82f, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var format = new StringFormat(StringFormat.GenericTypographic)
+        using var large = new Bitmap(canvas, canvas);
+        using (var graphics = Graphics.FromImage(large))
         {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center,
-        };
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            graphics.Clear(Color.Transparent);
 
-        var bounds = new RectangleF(0, 0, size, size);
-        var offset = Math.Max(1, size / 16);
+            using var font = new Font("Microsoft YaHei UI", canvas * 0.78f, FontStyle.Bold, GraphicsUnit.Pixel);
+            using var format = new StringFormat(StringFormat.GenericTypographic)
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
 
-        using var outlineBrush = new SolidBrush(outline);
-        foreach (var (dx, dy) in new[] { (-offset, 0), (offset, 0), (0, -offset), (0, offset) })
-        {
-            graphics.DrawString("司", font, outlineBrush, new RectangleF(dx, dy, size, size), format);
+            var bounds = new RectangleF(0, 0, canvas, canvas);
+            var offset = Math.Max(1, canvas / 16);
+
+            using var outlineBrush = new SolidBrush(outline);
+            foreach (var (dx, dy) in new[] { (-offset, 0), (offset, 0), (0, -offset), (0, offset) })
+            {
+                graphics.DrawString("司", font, outlineBrush, new RectangleF(dx, dy, canvas, canvas), format);
+            }
+
+            using var foregroundBrush = new SolidBrush(foreground);
+            graphics.DrawString("司", font, foregroundBrush, bounds, format);
         }
 
-        using var foregroundBrush = new SolidBrush(foreground);
-        graphics.DrawString("司", font, foregroundBrush, bounds, format);
+        using var bitmap = new Bitmap(size, size);
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.Clear(Color.Transparent);
+            graphics.DrawImage(large, new Rectangle(0, 0, size, size));
+        }
 
         var handle = bitmap.GetHicon();
         var icon = Icon.FromHandle(handle);

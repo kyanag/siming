@@ -22,7 +22,7 @@ AI 客户端 ──stdio──> Siming.exe --mcp ──TCP 127.0.0.1:17321 + tok
 | 工具 | 作用 |
 |---|---|
 | `siming_list_entries` | 列出条目与状态；同时返回 `appRunning` / `controlConnected` |
-| `siming_add_entry` | 新增条目：name / cwd / command / shell / encoding / env / autoStart |
+| `siming_add_entry` | 新增条目：name / cwd / command / shell / encoding / env / autoStart；也可带 `extract` / `actions` |
 | `siming_update_entry` | 修改条目，只更新传入字段 |
 | `siming_remove_entry` | 删除条目；默认先停止运行中的进程 |
 | `siming_start_entry` | 启动条目；主程序未运行会自动拉起 |

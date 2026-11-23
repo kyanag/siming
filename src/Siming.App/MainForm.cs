@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Siming.Core.Configuration;
 using Siming.Core.Control;
 using Siming.Core.Platform;
@@ -33,6 +34,7 @@ public sealed class MainForm : Form
     private readonly StatusStrip _statusBar;
     private readonly ToolStripStatusLabel _countLabel;
     private readonly ToolStripStatusLabel _messageLabel;
+    private readonly ToolStripStatusLabel _startupLabel;
     private readonly ToolStripStatusLabel _pathLabel;
     private readonly NotifyIcon _tray;
     private readonly ContextMenuStrip _trayMenu;
@@ -49,7 +51,6 @@ public sealed class MainForm : Form
     private ControlServer? _controlServer;
     private bool _exiting;
     private bool _hideHintShown;
-    private bool _syncingStartup;
 
     public MainForm(ConfigStore store, ProcessSupervisor supervisor)
     {
@@ -115,16 +116,11 @@ public sealed class MainForm : Form
         {
             DisplayStyle = ToolStripItemDisplayStyle.Text,
             AutoToolTip = false,
-            CheckOnClick = true,
-            Checked = _store.Current.Settings.StartWithWindows,
+            // 勾选状态由注册表的实际状态决定，不交给 CheckOnClick 自己翻。
+            CheckOnClick = false,
         };
-        _startupButton.CheckedChanged += (_, _) =>
-        {
-            if (!_syncingStartup)
-            {
-                ApplyStartup(_startupButton.Checked);
-            }
-        };
+        _startupButton.Click += (_, _) =>
+            ApplyStartup(!StartupRegistration.Inspect(ExecutablePath).IsEffective);
 
         _toolbar = new ToolStrip
         {
@@ -162,6 +158,15 @@ public sealed class MainForm : Form
             Spring = true,
             TextAlign = ContentAlignment.MiddleLeft,
         };
+        _startupLabel = new ToolStripStatusLabel
+        {
+            IsLink = true,
+            TextAlign = ContentAlignment.MiddleLeft,
+            BorderSides = ToolStripStatusLabelBorderSides.Left,
+            BorderStyle = Border3DStyle.Etched,
+        };
+        _startupLabel.Click += (_, _) => ShowStartupDetails();
+
         _pathLabel = new ToolStripStatusLabel
         {
             IsLink = true,
@@ -171,7 +176,7 @@ public sealed class MainForm : Form
         _pathLabel.Click += (_, _) => OpenConfigFolder(selectFile: true);
 
         _statusBar = new StatusStrip { SizingGrip = false };
-        _statusBar.Items.AddRange([_countLabel, _messageLabel, _pathLabel]);
+        _statusBar.Items.AddRange([_countLabel, _messageLabel, _startupLabel, _pathLabel]);
 
         Controls.Add(listHost);
         Controls.Add(_toolbar);
@@ -856,45 +861,67 @@ public sealed class MainForm : Form
         return true;
     }
 
+    /// <summary>
+    /// 启动时校正一次开机自启。配置是“意图”，注册表是“事实”：两者不一致时以配置为准修复，
+    /// 并把修复结果反馈到状态栏和状态标签上。
+    /// </summary>
     private void ReconcileStartupSetting()
     {
-        var enabled = _store.Current.Settings.StartWithWindows;
         var executable = ExecutablePath;
+        var enabled = _store.Current.Settings.StartWithWindows;
+        var before = StartupRegistration.Inspect(executable);
+        var action = StartupRegistration.Decide(_store.LastError is null, enabled, before);
 
-        if (enabled)
+        var repaired = false;
+        switch (action)
         {
-            if (!StartupRegistration.IsEnabled(executable)
-                && !StartupRegistration.SetEnabled(true, executable, out var error))
-            {
-                SetStatus($"写入开机自启失败：{error}", error: true);
-            }
-        }
-        else
-        {
-            // 配置是唯一事实来源：关闭时顺手清掉可能残留的启动项。
-            StartupRegistration.SetEnabled(false, executable, out _);
+            case StartupAction.Register:
+                if (!StartupRegistration.SetEnabled(true, executable, out var error))
+                {
+                    SetStatus($"写入开机自启失败：{error}", error: true);
+                }
+                else
+                {
+                    repaired = true;
+                }
+
+                break;
+
+            case StartupAction.Unregister:
+                StartupRegistration.SetEnabled(false, executable, out _);
+                break;
         }
 
-        SyncStartupButton();
+        var after = StartupRegistration.Inspect(executable);
+        RefreshStartupState();
+
+        if (repaired && after.IsEffective)
+        {
+            SetStatus(before.State == StartupState.Disabled
+                ? "开机自启未登记，已自动补上"
+                : "开机自启的启动项不正确，已修正");
+        }
+        else if (enabled && !after.IsEffective)
+        {
+            SetStatus($"开机自启未生效：{StartupHint(after)}", error: true);
+        }
     }
 
     private void ApplyStartup(bool enabled)
     {
         var settings = _store.Current.Settings;
         var previous = settings.StartWithWindows;
-        if (previous == enabled)
-        {
-            SyncStartupButton();
-            return;
-        }
 
-        settings.StartWithWindows = enabled;
-        if (!_store.TrySave(_store.Current, out var saveError))
+        if (previous != enabled)
         {
-            settings.StartWithWindows = previous;
-            SetStatus($"保存配置失败：{saveError}", error: true);
-            SyncStartupButton();
-            return;
+            settings.StartWithWindows = enabled;
+            if (!_store.TrySave(_store.Current, out var saveError))
+            {
+                settings.StartWithWindows = previous;
+                SetStatus($"保存配置失败：{saveError}", error: true);
+                RefreshStartupState();
+                return;
+            }
         }
 
         if (!StartupRegistration.SetEnabled(enabled, ExecutablePath, out var registryError))
@@ -902,26 +929,105 @@ public sealed class MainForm : Form
             settings.StartWithWindows = previous;
             _store.TrySave(_store.Current, out _);
             SetStatus($"开机自启设置失败：{registryError}", error: true);
-            SyncStartupButton();
+            RefreshStartupState();
+            return;
+        }
+
+        var status = StartupRegistration.Inspect(ExecutablePath);
+        RefreshStartupState();
+
+        if (enabled && !status.IsEffective)
+        {
+            // 写进去了但系统仍然不认（例如启动项被组策略或安全软件拦住），如实说出来。
+            SetStatus($"开机自启未生效：{StartupHint(status)}", error: true);
             return;
         }
 
         SetStatus(enabled ? "已开启开机自启" : "已关闭开机自启");
-        SyncStartupButton();
     }
 
-    private void SyncStartupButton()
+    /// <summary>把注册表的真实状态同步到工具条按钮、状态栏标签和托盘菜单。</summary>
+    private void RefreshStartupState()
     {
-        _syncingStartup = true;
-        try
+        var status = StartupRegistration.Inspect(ExecutablePath);
+
+        _startupButton.Checked = status.IsEffective;
+        _startupButton.ToolTipText = StartupHint(status);
+
+        _startupLabel.Text = status.State switch
         {
-            _startupButton.Checked = _store.Current.Settings.StartWithWindows;
-        }
-        finally
-        {
-            _syncingStartup = false;
-        }
+            StartupState.Enabled => "开机自启：已启用",
+            StartupState.Disabled => "开机自启：未启用",
+            StartupState.DisabledBySystem => "开机自启：被系统禁用",
+            StartupState.OtherPath => "开机自启：指向其他程序",
+            _ => "开机自启：读取失败",
+        };
+        _startupLabel.ToolTipText = $"{StartupHint(status)}\n点击查看详情";
+        _startupLabel.ForeColor = status.State is StartupState.Enabled or StartupState.Disabled
+            ? SystemColors.ControlText
+            : ErrorColor;
     }
+
+    /// <summary>一句话说明当前状态，以及点一下会发生什么。</summary>
+    private string StartupHint(StartupStatus status) => status.State switch
+    {
+        StartupState.Enabled => "登录 Windows 时会自动启动司命（--tray）。点击可关闭。",
+        StartupState.Disabled => "不会随系统启动。点击可开启。",
+        StartupState.DisabledBySystem => "启动项还在，但被系统或任务管理器禁用了，登录时不会执行。点击可重新启用。",
+        StartupState.OtherPath => $"启动项指向别的位置：{status.Command}。点击可改成当前程序。",
+        _ => $"无法读取开机启动项：{status.Error}",
+    };
+
+    private void ShowStartupDetails()
+    {
+        var status = StartupRegistration.Inspect(ExecutablePath);
+        var command = status.Command ?? StartupRegistration.BuildCommand(ExecutablePath);
+        var needsRepair = !status.IsEffective;
+
+        var text = new StringBuilder()
+            .AppendLine("开机自启")
+            .AppendLine()
+            .AppendLine($"状态：{StartupStateText(status.State)}")
+            .AppendLine($"当前程序：{ExecutablePath}")
+            .AppendLine($"注册表位置：{StartupRegistration.RegistryPath}")
+            .AppendLine($"值名：Siming")
+            .AppendLine($"值：{command}")
+            .AppendLine()
+            .AppendLine(StartupHint(status))
+            .ToString();
+
+        if (needsRepair)
+        {
+            text += "\n现在重新登记？";
+            if (MessageBox.Show(this, text, "开机自启", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                ApplyStartup(true);
+            }
+
+            return;
+        }
+
+        MessageBox.Show(this, text, "开机自启", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static string StartupStateText(StartupState state) => state switch
+    {
+        StartupState.Enabled => "已启用（登录时自动启动）",
+        StartupState.Disabled => "未启用",
+        StartupState.DisabledBySystem => "被系统或任务管理器禁用",
+        StartupState.OtherPath => "指向其他程序",
+        _ => "读取失败",
+    };
+
+    /// <summary>托盘菜单里直接写出状态，不用点开才知道开没开。</summary>
+    private static string StartupMenuText(StartupState state) => state switch
+    {
+        StartupState.Enabled => "开机自启（已启用）",
+        StartupState.Disabled => "开机自启（未启用）",
+        StartupState.DisabledBySystem => "开机自启（被系统禁用）",
+        StartupState.OtherPath => "开机自启（指向其他程序）",
+        _ => "开机自启（读取失败）",
+    };
 
     private static string ExecutablePath =>
         Environment.ProcessPath ?? Application.ExecutablePath;
@@ -1451,12 +1557,14 @@ public sealed class MainForm : Form
         _trayMenu.Items.Add(MenuItem("打开主窗口", ShowFromTray));
         _trayMenu.Items.Add(MenuItem("打开配置文件所在文件夹", () => OpenConfigFolder(selectFile: true)));
 
-        var startupItem = new ToolStripMenuItem("开机自启")
+        var startupStatus = StartupRegistration.Inspect(ExecutablePath);
+        var startupItem = new ToolStripMenuItem(StartupMenuText(startupStatus.State))
         {
-            Checked = _store.Current.Settings.StartWithWindows,
-            CheckOnClick = true,
+            Checked = startupStatus.IsEffective,
+            CheckOnClick = false,
+            ToolTipText = StartupHint(startupStatus),
         };
-        startupItem.CheckedChanged += (_, _) => ApplyStartup(startupItem.Checked);
+        startupItem.Click += (_, _) => ApplyStartup(!StartupRegistration.Inspect(ExecutablePath).IsEffective);
         _trayMenu.Items.Add(startupItem);
 
         _trayMenu.Items.Add(MenuItem("退出", RequestExit));
